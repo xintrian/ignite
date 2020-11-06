@@ -78,7 +78,10 @@ public class NativeType implements Comparable<NativeType> {
     }
 
     /**
-     * @return Length of the type if it is a fixlen type.
+     * @return Length of the type if it is a fixlen type. For varlen types the return value is undefined, so the user
+     * should explicitly check {@code spec().fixedLength()} before using this method.
+     *
+     * @see NativeTypeSpec#fixedLength()
      */
     public int length() {
         return len;

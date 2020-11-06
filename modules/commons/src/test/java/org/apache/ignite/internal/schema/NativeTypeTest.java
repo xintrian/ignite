@@ -29,11 +29,17 @@ public class NativeTypeTest {
      */
     @Test
     public void testCompareFixlenVarlen() {
+        Assert.assertTrue(NativeType.BYTE.compareTo(NativeType.STRING) < 0);
+        Assert.assertTrue(NativeType.BYTE.compareTo(NativeType.BYTES) < 0);
+
         Assert.assertTrue(NativeType.INTEGER.compareTo(NativeType.STRING) < 0);
         Assert.assertTrue(NativeType.INTEGER.compareTo(NativeType.BYTES) < 0);
 
         Assert.assertTrue(NativeType.LONG.compareTo(NativeType.STRING) < 0);
         Assert.assertTrue(NativeType.LONG.compareTo(NativeType.BYTES) < 0);
+
+        Assert.assertTrue(NativeType.UUID.compareTo(NativeType.STRING) < 0);
+        Assert.assertTrue(NativeType.UUID.compareTo(NativeType.BYTES) < 0);
     }
 
     /**

@@ -21,9 +21,8 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.Random;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import static org.apache.ignite.internal.schema.NativeType.BYTE;
 import static org.apache.ignite.internal.schema.NativeType.BYTES;
@@ -34,7 +33,8 @@ import static org.apache.ignite.internal.schema.NativeType.LONG;
 import static org.apache.ignite.internal.schema.NativeType.SHORT;
 import static org.apache.ignite.internal.schema.NativeType.STRING;
 import static org.apache.ignite.internal.schema.NativeType.UUID;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Tests tuple assembling and reading.
@@ -44,8 +44,9 @@ public class TupleTest {
     private Random rnd;
 
     /**
+     *
      */
-    @Before
+    @BeforeEach
     public void initRandom() {
         long seed = System.currentTimeMillis();
 
@@ -55,6 +56,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFixedSizes() {
@@ -86,6 +88,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     @Test
     public void testVariableSizes() {
@@ -111,6 +114,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     @Test
     public void testMixedSizes() {
@@ -128,6 +132,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     private void checkSchema(Column[] keyCols, Column[] valCols) {
         checkSchemaShuffled(keyCols, valCols);
@@ -139,6 +144,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     private void checkSchemaShuffled(Column[] keyCols, Column[] valCols) {
         SchemaDescriptor sch = new SchemaDescriptor(1, new Columns(keyCols), new Columns(valCols));
@@ -167,6 +173,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     private Object[] sequence(SchemaDescriptor schema) {
         Object[] res = new Object[schema.length()];
@@ -181,6 +188,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     private Object generateRandomValue(NativeType type) {
         switch (type.spec()) {
@@ -249,6 +257,7 @@ public class TupleTest {
     }
 
     /**
+     *
      */
     private void checkValues(SchemaDescriptor schema, Object... vals) {
         assertEquals(schema.keyColumns().length() + schema.valueColumns().length(), vals.length);
@@ -355,13 +364,14 @@ public class TupleTest {
             NativeTypeSpec type = schema.column(i).type().spec();
 
             if (type == NativeTypeSpec.BYTES)
-                Assert.assertArrayEquals((byte[])vals[i], (byte[])NativeTypeSpec.BYTES.objectValue(tup, i));
+                assertArrayEquals((byte[])vals[i], (byte[])NativeTypeSpec.BYTES.objectValue(tup, i));
             else
-                Assert.assertEquals(vals[i], type.objectValue(tup, i));
+                assertEquals(vals[i], type.objectValue(tup, i));
         }
     }
 
     /**
+     *
      */
     private void shuffle(Column[] cols) {
         Collections.shuffle(Arrays.asList(cols));

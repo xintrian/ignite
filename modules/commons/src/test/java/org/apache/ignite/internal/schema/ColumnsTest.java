@@ -17,16 +17,18 @@
 
 package org.apache.ignite.internal.schema;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  *
  */
 public class ColumnsTest {
     /**
+     *
      */
     @Test
     public void testFixsizeIndex() {
@@ -40,13 +42,14 @@ public class ColumnsTest {
         assertEquals(-1, cols.firstVarlengthColumn());
 
         for (int c = 0; c < cols.length(); c++)
-            Assert.assertTrue(cols.isFixedSize(c));
+            assertTrue(cols.isFixedSize(c));
 
         assertEquals(1, cols.nullMapSize());
         assertEquals(3, cols.numberOfFixsizeColumns());
     }
 
     /**
+     *
      */
     @Test
     public void testVarsizeIndex() {
@@ -60,13 +63,14 @@ public class ColumnsTest {
         assertEquals(0, cols.firstVarlengthColumn());
 
         for (int c = 0; c < cols.length(); c++)
-            Assert.assertFalse(cols.isFixedSize(c));
+            assertFalse(cols.isFixedSize(c));
 
         assertEquals(1, cols.nullMapSize());
         assertEquals(0, cols.numberOfFixsizeColumns());
     }
 
     /**
+     *
      */
     @Test
     public void testMixedIndex() {
@@ -82,9 +86,9 @@ public class ColumnsTest {
 
         for (int c = 0; c < cols.length(); c++) {
             if (c < cols.firstVarlengthColumn())
-                Assert.assertTrue(cols.isFixedSize(c));
+                assertTrue(cols.isFixedSize(c));
             else
-                Assert.assertFalse(cols.isFixedSize(c));
+                assertFalse(cols.isFixedSize(c));
         }
 
         assertEquals(1, cols.nullMapSize());
@@ -92,6 +96,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testNullMapSize() {
@@ -111,6 +116,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeNoVarlenIncomplete1Byte() {
@@ -128,6 +134,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeNoVarlenFull1Byte() {
@@ -146,6 +153,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeNoVarlenIncomplete2Bytes() {
@@ -166,6 +174,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeNoVarlenFull2Bytes() {
@@ -192,6 +201,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeVarlenIncomplete1Byte() {
@@ -209,6 +219,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeVarlenFull1Byte() {
@@ -227,6 +238,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeVarlenIncomplete2Bytes1() {
@@ -246,6 +258,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeVarlenIncomplete2Bytes2() {
@@ -267,6 +280,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeVarlenIncomplete2Bytes3() {
@@ -288,6 +302,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     @Test
     public void testFoldSizeVarlenFull2Bytes() {
@@ -314,6 +329,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     private void checkColumnFolding(Column[] colDef) {
         Columns cols = new Columns(colDef);
@@ -328,6 +344,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     private void incrementMask(boolean[] mask) {
         boolean add = true;
@@ -339,6 +356,7 @@ public class ColumnsTest {
     }
 
     /**
+     *
      */
     private void checkSize(Columns cols, Column[] colDef, boolean[] nullMasks) {
         // Iterate over bytes first
@@ -353,7 +371,7 @@ public class ColumnsTest {
                 if (idx >= cols.numberOfFixsizeColumns())
                     break;
 
-                Assert.assertTrue(colDef[idx].type().spec().fixedLength());
+                assertTrue(colDef[idx].type().spec().fixedLength());
 
                 if (nullMasks[idx])
                     // set bit in the mask (indicate null value).
@@ -363,12 +381,12 @@ public class ColumnsTest {
                     size += colDef[idx].type().length();
             }
 
-            assertEquals("Failed [b=" + b + ", mask=" + mask + ']',
-                size, cols.foldFixedLength(b, mask));
+            assertEquals(size, cols.foldFixedLength(b, mask), "Failed [b=" + b + ", mask=" + mask + ']');
         }
     }
 
     /**
+     *
      */
     private static Column[] columns(int size) {
         Column[] ret = new Column[size];

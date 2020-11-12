@@ -299,12 +299,15 @@ public class TupleTest {
         ByteBufferTuple tup = new ByteBufferTuple(schema, data);
 
         for (int i = 0; i < vals.length; i++) {
-            NativeTypeSpec type = schema.column(i).type().spec();
+            Column col = schema.column(i);
+
+            NativeTypeSpec type = col.type().spec();
 
             if (type == NativeTypeSpec.BYTES)
-                assertArrayEquals((byte[])vals[i], (byte[])NativeTypeSpec.BYTES.objectValue(tup, i));
+                assertArrayEquals((byte[])vals[i], (byte[])NativeTypeSpec.BYTES.objectValue(tup, i),
+                    "Failed for column: " + col);
             else
-                assertEquals(vals[i], type.objectValue(tup, i));
+                assertEquals(vals[i], type.objectValue(tup, i), "Failed for column: " + col);
         }
     }
 

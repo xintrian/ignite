@@ -17,23 +17,16 @@
 
 package org.apache.ignite.internal.schema;
 
-import org.apache.ignite.internal.schema.marshaller.JavaSerializerTest;
-import org.junit.platform.runner.JUnitPlatform;
-import org.junit.platform.suite.api.SelectClasses;
-import org.junit.runner.RunWith;
-
 /**
- *
+ * The exception is thrown when the tuple assembler encountered an unrecoverable error during the field encoding.
+ * After the exception is thrown, the assembler remains in an invalid state and should be discarded.
  */
-@SuppressWarnings("JUnit5Platform")
-@RunWith(JUnitPlatform.class)
-@SelectClasses({
-    JavaSerializerTest.class,
-    ExpandableByteBufTest.class,
-    NativeTypeTest.class,
-    ColumnTest.class,
-    ColumnsTest.class,
-    TupleTest.class
-})
-public class SchemaTestSuite {
+public class AssemblyException extends RuntimeException {
+    /**
+     * @param errMsg Error message
+     * @param cause Cause for this error.
+     */
+    public AssemblyException(String errMsg, Exception cause) {
+        super(errMsg, cause);
+    }
 }

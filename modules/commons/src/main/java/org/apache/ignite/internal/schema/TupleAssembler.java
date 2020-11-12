@@ -19,8 +19,8 @@ package org.apache.ignite.internal.schema;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CoderResult;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +40,7 @@ public class TupleAssembler {
     private final int nonNullVarlenValCols;
 
     /** Target byte buffer to write to. */
-    private final ByteBuffer buf;
+    private final ExpandableByteBuf buf;
 
     /** Current columns chunk. */
     private Columns curCols;
@@ -112,7 +112,8 @@ public class TupleAssembler {
 
     /**
      * @param schema Tuple schema.
-     * @param size Target tuple size. For now, must exactly match the resulting tuple size.
+     * @param size Target tuple size. If the tuple size is known in advance, it should be provided upfront to avoid
+     *      unnccessary arrays copy.
      * @param nonNullVarsizeKeyCols Number of null varlen columns in key chunk.
      * @param nonNullVarlenValCols Number of null varlen columns in value chunk.
      */
@@ -126,9 +127,7 @@ public class TupleAssembler {
 
         this.nonNullVarlenValCols = nonNullVarlenValCols;
 
-        buf = ByteBuffer.allocate(size);
-
-        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf = new ExpandableByteBuf(size);
 
         curCols = schema.columns(0);
 
@@ -242,26 +241,16 @@ public class TupleAssembler {
     public void appendString(String val) {
         checkType(NativeType.STRING);
 
-        assert buf.position() == 0;
+        try {
+            int written = buf.putString(curOff, val, encoder());
 
-        ByteBuffer wrapper = buf.slice();
-        wrapper.position(curOff);
+            writeOffset(curVarlenTblEntry, curOff - baseOff);
 
-        CharsetEncoder encoder = encoder();
-        encoder.reset();
-        CoderResult cr = encoder.encode(CharBuffer.wrap(val), wrapper, true);
-
-        if (!cr.isUnderflow())
-            throw new BufferUnderflowException();
-
-        cr = encoder.flush(wrapper);
-
-        if (!cr.isUnderflow())
-            throw new BufferUnderflowException();
-
-        writeOffset(curVarlenTblEntry, curOff - baseOff);
-
-        shiftColumn(wrapper.position() - curOff, true);
+            shiftColumn(written, true);
+        }
+        catch (CharacterCodingException e) {
+            throw new AssemblyException("Failed to encode string", e);
+        }
     }
 
     /**
@@ -269,18 +258,11 @@ public class TupleAssembler {
     public void appendBytes(byte[] val) {
         checkType(NativeType.BYTES);
 
-        buf.position(curOff);
+        buf.putBytes(curOff, val);
 
-        try {
-            buf.put(val);
+        writeOffset(curVarlenTblEntry, curOff - baseOff);
 
-            writeOffset(curVarlenTblEntry, curOff - baseOff);
-
-            shiftColumn(val.length, true);
-        }
-        finally {
-            buf.position(0);
-        }
+        shiftColumn(val.length, true);
     }
 
     /**
@@ -296,27 +278,20 @@ public class TupleAssembler {
             throw new IllegalArgumentException("Failed to set bitmask for column '" + col.name() + "' " +
                 "(mask size exceeds allocated size) [mask=" + bitSet + ", maxSize=" + maskType.bits() + "]");
 
-        buf.position(curOff);
+        byte[] arr = bitSet.toByteArray();
 
-        try {
-            byte[] arr = bitSet.toByteArray();
+        buf.putBytes(curOff, arr);
 
-            buf.put(arr);
+        for (int i = 0; i < maskType.length() - arr.length; i++)
+            buf.put(curOff + arr.length + i, (byte)0);
 
-            for (int i = 0; i < maskType.length() - arr.length; i++)
-                buf.put((byte)0);
-
-            shiftColumn(maskType);
-        }
-        finally {
-            buf.position(0);
-        }
+        shiftColumn(maskType);
     }
 
     /**
      */
     public byte[] build() {
-        return buf.array();
+        return buf.toArray();
     }
 
     /**

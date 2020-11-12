@@ -55,8 +55,8 @@
  * To assemble a tuple with some schema, an instance of {@link org.apache.ignite.internal.schema.TupleAssembler}
  * must be used which provides the low-level API for building tuples. When using the tuple assembler, the
  * columns must be passed to the assembler in the internal schema sort order. Additionally, when constructing
- * the instance of the assembler, the user must pre-calculate the size of the tuple (using tooling provided by the
- * assembler) and the number of non-null varlen columns for key and value chunks. Less restrictive building techniques
+ * the instance of the assembler, the user should pre-calculate the size of the tuple to avoid extra array copies,
+ * and the number of non-null varlen columns for key and value chunks. Less restrictive building techniques
  * are provided by class (de)serializers and tuple builder, which take care of sizing and column order.
  * <p>
  * To read column values of a tuple, one needs to construct a subclass of

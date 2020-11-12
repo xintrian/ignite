@@ -18,7 +18,9 @@
 package org.apache.ignite.internal.schema.marshaller;
 
 import java.lang.reflect.Field;
+import java.util.Objects;
 import org.apache.ignite.internal.schema.Column;
+import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
 import org.jetbrains.annotations.Nullable;
@@ -44,7 +46,11 @@ public abstract class FieldAccessor {
     /** Mode. */
     protected final BinaryMode mode;
 
-    /** Column index. */
+    /**
+     * Mapped column position in schema.
+     * <p>
+     * NODE: Do not mix up with column index in {@link Columns} container.
+     */
     protected final int colIdx;
 
     /**
@@ -52,7 +58,7 @@ public abstract class FieldAccessor {
      *
      * @param field Field.
      * @param col Mapped column.
-     * @param colIdx Column index.
+     * @param colIdx Column index in schema.
      * @return Accessor.
      */
     //TODO: Extract a provider for this factory-method.
@@ -101,6 +107,44 @@ public abstract class FieldAccessor {
     }
 
     /**
+     * Create accessor for the field.
+     *
+     * @param col Column.
+     * @param colIdx Column index.
+     * @param mode Binary mode.
+     * @return Accessor.
+     */
+    static FieldAccessor createIdentityAccessor(Column col, int colIdx, BinaryMode mode) {
+        switch (mode) {
+            //  Marshaller read/write object contract methods allowed boxed types only.
+            case P_BYTE:
+            case P_SHORT:
+            case P_INT:
+            case P_LONG:
+            case P_FLOAT:
+            case P_DOUBLE:
+                throw new IllegalArgumentException("Primitive key/value types are not possible by API contract.");
+
+            case BYTE:
+            case SHORT:
+            case INT:
+            case LONG:
+            case FLOAT:
+            case DOUBLE:
+            case STRING:
+            case UUID:
+            case BYTE_ARR:
+            case BITSET:
+                return new IdentityAccessor(colIdx, mode);
+
+            default:
+                assert false : "Invalid mode " + mode;
+        }
+
+        throw new IllegalArgumentException("Failed to create accessor for column [name=" + col.name() + ']');
+    }
+
+    /**
      * Protected constructor.
      *
      * @param field Field.
@@ -108,7 +152,6 @@ public abstract class FieldAccessor {
      * @param mode Binary mode;
      */
     protected FieldAccessor(Field field, int colIdx, BinaryMode mode) {
-        assert field != null;
         assert colIdx >= 0;
         assert mode != null;
 
@@ -116,7 +159,8 @@ public abstract class FieldAccessor {
         this.colIdx = colIdx;
         this.mode = mode;
 
-        field.setAccessible(true);
+        if (field != null)
+            field.setAccessible(true);
     }
 
     /**
@@ -137,7 +181,7 @@ public abstract class FieldAccessor {
      */
     public void write(Object obj, TupleAssembler writer) throws SerializationException {
         try {
-            write0(obj, writer);
+            write0(Objects.requireNonNull(obj), writer);
         }
         catch (Exception ex) {
             if (includeSensitive())
@@ -165,7 +209,7 @@ public abstract class FieldAccessor {
      */
     public void read(Object obj, Tuple reader) throws SerializationException {
         try {
-            read0(obj, reader);
+            read0(Objects.requireNonNull(obj), reader);
         }
         catch (Exception ex) {
             if (includeSensitive())
@@ -185,6 +229,16 @@ public abstract class FieldAccessor {
     protected abstract void read0(Object obj, Tuple reader) throws IllegalAccessException;
 
     /**
+     * Read value.
+     *
+     * @param reader Tuple reader.
+     * @return Object.
+     */
+    public Object read(Tuple reader) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Reads object field value.
      *
      * @param obj Object.
@@ -193,13 +247,48 @@ public abstract class FieldAccessor {
      */
     @Nullable Object value(Object obj) throws SerializationException {
         try {
-            return field.get(obj);
+            return field.get(Objects.requireNonNull(obj));
         }
         catch (IllegalAccessException ex) {
             if (includeSensitive())
                 throw new SerializationException("Failed to read field [name=" + field.getName() + ']', ex);
             else
                 throw new SerializationException("Failed to read field [id=" + colIdx + ']', ex);
+        }
+    }
+
+    /**
+     * Accessor for field of primitive {@code byte} type.
+     */
+    private static class IdentityAccessor extends FieldAccessor {
+        /**
+         * Constructor.
+         *
+         * @param colIdx Column index.
+         * @param mode Binary mode.
+         */
+        public IdentityAccessor(int colIdx, BinaryMode mode) {
+            super(null, colIdx, mode);
+        }
+
+        /** {@inheritDoc} */
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            JavaSerializer.writeRefObject(Objects.requireNonNull(obj, "Null values are not supported."), writer, mode);
+        }
+
+        /** {@inheritDoc} */
+        @Override protected void read0(Object obj, Tuple reader) {
+            throw new UnsupportedOperationException("Called identity accessor for object field.");
+        }
+
+        /** {@inheritDoc} */
+        @Override public Object read(Tuple reader) {
+            return JavaSerializer.readRefValue(reader, colIdx, mode);
+        }
+
+        /** {@inheritDoc} */
+        @Override @Nullable Object value(Object obj) {
+            return obj;
         }
     }
 

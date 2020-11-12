@@ -17,12 +17,17 @@
 
 package org.apache.ignite.internal.schema.marshaller;
 
+/**
+ * Serialization exception.
+ */
 public class SerializationException extends Exception {
+    /**
+     * Constructor.
+     *
+     * @param message Message.
+     * @param cause Cause.
+     */
     public SerializationException(String message, Throwable cause) {
         super(message, cause);
-    }
-
-    public SerializationException(Throwable cause) {
-        super(cause);
     }
 }

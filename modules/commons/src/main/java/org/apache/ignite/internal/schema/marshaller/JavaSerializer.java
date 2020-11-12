@@ -17,9 +17,13 @@
 
 package org.apache.ignite.internal.schema.marshaller;
 
+import java.lang.reflect.Field;
 import java.util.BitSet;
 import java.util.UUID;
+import org.apache.ignite.internal.schema.ByteBufferTuple;
 import org.apache.ignite.internal.schema.Column;
+import org.apache.ignite.internal.schema.Columns;
+import org.apache.ignite.internal.schema.NativeType;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
@@ -31,7 +35,6 @@ import org.jetbrains.annotations.NotNull;
  * TODO: Extract interface.
  */
 public class JavaSerializer {
-
     /**
      * Gets binary read/write mode for given class.
      *
@@ -229,7 +232,10 @@ public class JavaSerializer {
     /** Schema. */
     private final SchemaDescriptor schema;
 
+    /** Key class. */
     private final Class<?> keyClass;
+
+    /** Value class. */
     private final Class<?> valClass;
 
     /** Key marshaller. */
@@ -250,32 +256,48 @@ public class JavaSerializer {
         this.keyClass = keyClass;
         this.valClass = valClass;
 
-        keyMarsh = createMarshaller(schema, keyClass);
-        valMarsh = createMarshaller(schema, valClass);
+        keyMarsh = createMarshaller(schema.keyColumns(), 0, keyClass);
+        valMarsh = createMarshaller(schema.valueColumns(), schema.keyColumns().length(), valClass);
     }
 
     /**
      * Creates marshaller for class.
      *
-     * @param schema Schema.
+     * @param cols Columns.
+     * @param firstColId First column position in schema.
      * @param aClass Type.
      * @return Marshaller.
      */
-    @NotNull private <T> Marshaller createMarshaller(SchemaDescriptor schema, Class<T> aClass) {
+    @NotNull private static Marshaller createMarshaller(Columns cols, int firstColId, Class<?> aClass) {
         final BinaryMode mode = mode(aClass);
 
         if (mode != null) {
-            final Column col = schema.keyColumns().column(0);
+            final Column col = cols.column(0);
 
+            assert cols.length() == 1;
             assert mode.typeSpec() == col.type().spec() : "Target type is not compatible.";
-            assert aClass.isPrimitive() && col.nullable() : "Non-nullable types are not allowed.";
+            assert !aClass.isPrimitive() : "Non-nullable types are not allowed.";
 
-            return new BaseTypeMarshaller(mode);
+            return new Marshaller(FieldAccessor.createIdentityAccessor(col, firstColId, mode));
         }
 
-        // TODO: Build accessors
+        try {
+            FieldAccessor[] fieldAccessors = new FieldAccessor[cols.length()];
 
-        return new ClassMarshaller<>(schema.keyColumns(), ObjectFactory.classFactory(aClass), null);
+            // Build accessors
+            for (int i = 0; i < cols.length(); i++) {
+                final Column col = cols.column(i);
+                final Field field = aClass.getDeclaredField(col.name());
+
+                final int colIdx = firstColId + i; /* Absolute column idx in schema. */
+                fieldAccessors[i] = FieldAccessor.create(field, col, colIdx);
+            }
+
+            return new Marshaller(ObjectFactory.classFactory(aClass), fieldAccessors);
+        }
+        catch (NoSuchFieldException | SecurityException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     /**
@@ -289,16 +311,128 @@ public class JavaSerializer {
         assert keyClass.isInstance(key);
         assert val == null || valClass.isInstance(val);
 
-        int size = 0;
-
-        int nonNullVarLenKeyCols = keyMarsh.nonNullVarLenCols(key);
-        int nonNullVarLenValCols = valMarsh.nonNullVarLenCols(val);
-
-        final TupleAssembler asm = new TupleAssembler(schema, size, nonNullVarLenKeyCols, nonNullVarLenValCols);
+        final TupleAssembler asm = createAssembler(key, val);
 
         keyMarsh.writeObject(key, asm);
-        valMarsh.writeObject(val, asm); // TODO: support tomstones.
+
+        if (val != null)
+            valMarsh.writeObject(val, asm);
+        else
+            assert false; // TODO: add tomstone support and remove assertion.
 
         return asm.build();
+    }
+
+    /**
+     * Creates TupleAssebler for key-value pair.
+     *
+     * @param key Key object.
+     * @param val Value object.
+     * @return Tuple assembler.
+     * @throws SerializationException If failed.
+     */
+    @NotNull private TupleAssembler createAssembler(Object key, Object val) throws SerializationException {
+        ObjectStatistic keyStat = collectObjectStats(schema.keyColumns(), keyMarsh, key);
+        ObjectStatistic valStat = collectObjectStats(schema.valueColumns(), valMarsh, val);
+
+        int size = TupleAssembler.tupleSize(
+            schema.keyColumns(), keyStat.nonNullFields, keyStat.nonNullFieldsSize,
+            schema.valueColumns(), valStat.nonNullFields, valStat.nonNullFieldsSize);
+
+        return new TupleAssembler(schema, size, keyStat.nonNullFields, valStat.nonNullFields);
+    }
+
+    /**
+     * Object statistic.
+     */
+    private static class ObjectStatistic {
+        /** Non-null fields of varlen type. */
+        int nonNullFields;
+
+        /** Length of all non-null fields of varlen types. */
+        int nonNullFieldsSize;
+
+        /** Constructor. */
+        public ObjectStatistic(int nonNullFields, int nonNullFieldsSize) {
+            this.nonNullFields = nonNullFields;
+            this.nonNullFieldsSize = nonNullFieldsSize;
+        }
+    }
+
+    /**
+     * Reads object fields and gather statistic.
+     *
+     * @param cols Schema columns.
+     * @param marsh Marshaller.
+     * @param obj Object.
+     * @return Object statistic.
+     * @throws SerializationException If failed.
+     */
+    private ObjectStatistic collectObjectStats(Columns cols, Marshaller marsh, Object obj) throws SerializationException {
+        if (obj == null || cols.firstVarlengthColumn() < 0 /* No varlen columns */)
+            return new ObjectStatistic(0, 0);
+
+        int cnt = 0;
+        int size = 0;
+
+        for (int i = cols.firstVarlengthColumn(); i < cols.length(); i++) {
+            final Object val = marsh.value(obj, i);
+
+            if (val == null || cols.column(i).type().spec().fixedLength())
+                continue;
+
+            size += getValueSize(val, cols.column(i).type());
+            cnt++;
+        }
+
+        return new ObjectStatistic(cnt, size);
+    }
+
+    /**
+     * Calculates size for serialized value of varlen type.
+     *
+     * @param val Field value.
+     * @param type Mapped type.
+     * @return Serialized value size.
+     */
+    private int getValueSize(Object val, NativeType type) {
+        switch (type.spec()) {
+            case BYTES:
+                return ((byte[])val).length;
+
+            case STRING:
+                return TupleAssembler.utf8EncodedLength((CharSequence)val);
+
+            default:
+                throw new IllegalStateException("Unsupported test varsize type: " + type);
+        }
+    }
+
+    /**
+     * @return Key object.
+     */
+    public Object deserializeKey(byte[] data) throws SerializationException {
+        final Tuple tuple = new ByteBufferTuple(schema, data);
+
+        final Object o = keyMarsh.readObject(tuple);
+
+        assert keyClass.isInstance(o);
+
+        return o;
+    }
+
+    /**
+     * @return Value object.
+     */
+    public Object deserializeValue(byte[] data) throws SerializationException {
+        final Tuple tuple = new ByteBufferTuple(schema, data);
+
+        // TODO: add tomstone support.
+
+        final Object o = valMarsh.readObject(tuple);
+
+        assert valClass.isInstance(o);
+
+        return o;
     }
 }

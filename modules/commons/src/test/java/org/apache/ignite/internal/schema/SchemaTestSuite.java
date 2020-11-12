@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.schema;
 
+import org.apache.ignite.internal.schema.marshaller.JavaSerializerTest;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.platform.suite.api.SelectClasses;
 import org.junit.runner.RunWith;
@@ -24,8 +25,10 @@ import org.junit.runner.RunWith;
 /**
  *
  */
+@SuppressWarnings("JUnit5Platform")
 @RunWith(JUnitPlatform.class)
 @SelectClasses({
+    JavaSerializerTest.class,
     NativeTypeTest.class,
     ColumnTest.class,
     ColumnsTest.class,

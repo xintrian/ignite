@@ -51,6 +51,8 @@ class ObjectFactory<T> {
      */
     private ObjectFactory(Constructor<T> ctor) {
         this.ctor = ctor;
+
+        ctor.setAccessible(true);
     }
 
     /**

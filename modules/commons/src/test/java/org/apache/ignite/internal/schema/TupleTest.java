@@ -191,7 +191,7 @@ public class TupleTest {
      *
      */
     private Object generateRandomValue(NativeType type) {
-        return SchemaTestUtils.generateRandomValue(rnd, type);
+        return TestUtils.generateRandomValue(rnd, type);
     }
 
     /**

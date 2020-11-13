@@ -18,12 +18,14 @@
 package org.apache.ignite.internal.schema.marshaller;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.ignite.internal.schema.Bitmask;
 import org.apache.ignite.internal.schema.Column;
-import org.apache.ignite.internal.schema.SchemaTestUtils;
+import org.apache.ignite.internal.schema.TestUtils;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
 import org.apache.ignite.internal.util.Pair;
@@ -60,7 +62,7 @@ public class FieldAccessorTest {
     public void initRandom() {
         long seed = System.currentTimeMillis();
 
-        System.out.println("Using seed: " + seed + "L; //");
+        System.out.println("Using seed: " + seed + "L;");
 
         rnd = new Random(seed);
     }
@@ -96,7 +98,7 @@ public class FieldAccessorTest {
         final TupleAssembler tupleAssembler = mocks.getFirst();
         final Tuple tuple = mocks.getSecond();
 
-        final TestObject obj = generateRandomObject();
+        final TestObject obj = TestObject.randomObject(rnd);
 
         for (int i = 0; i < cols.length; i++) {
             FieldAccessor accessor = FieldAccessor.create(TestObject.class, cols[i], i);
@@ -167,7 +169,8 @@ public class FieldAccessorTest {
         assertThrows(
             SerializationException.class,
             () -> accessor.write("Other string", mocks.getFirst()),
-            "Failed to write field [id=42]");
+            "Failed to write field [id=42]"
+        );
     }
 
     /**
@@ -182,7 +185,7 @@ public class FieldAccessorTest {
         final Tuple mockedTuple = Mockito.mock(Tuple.class);
 
         final Answer<Void> asmAnswer = new Answer<Void>() {
-            @Override public Void answer(InvocationOnMock invocation) throws Throwable {
+            @Override public Void answer(InvocationOnMock invocation) {
                 vals.add(invocation.getArguments()[0]);
 
                 return null;
@@ -190,7 +193,7 @@ public class FieldAccessorTest {
         };
 
         final Answer<Object> tupleAnswer = new Answer<Object>() {
-            @Override public Object answer(InvocationOnMock invocation) throws Throwable {
+            @Override public Object answer(InvocationOnMock invocation) {
                 final int idx = invocation.getArgumentAt(0, Integer.class);
 
                 return vals.get(idx);
@@ -232,37 +235,38 @@ public class FieldAccessorTest {
     }
 
     /**
-     * @return Random TestObject.
-     */
-    private TestObject generateRandomObject() {
-        final TestObject obj = new TestObject();
-
-        obj.pByteCol = (byte)rnd.nextInt(255);
-        obj.pShortCol = (short)rnd.nextInt(65535);
-        obj.pIntCol = rnd.nextInt();
-        obj.pLongCol = rnd.nextLong();
-        obj.pFloatCol = rnd.nextFloat();
-        obj.pDoubleCol = rnd.nextDouble();
-
-        obj.byteCol = (byte)rnd.nextInt(255);
-        obj.shortCol = (short)rnd.nextInt(65535);
-        obj.intCol = rnd.nextInt();
-        obj.longCol = rnd.nextLong();
-        obj.floatCol = rnd.nextFloat();
-        obj.doubleCol = rnd.nextDouble();
-
-        obj.uuidCol = new UUID(rnd.nextLong(), rnd.nextLong());
-        obj.bitmaskCol = SchemaTestUtils.randomBitSet(rnd, rnd.nextInt(42));
-        obj.stringCol = SchemaTestUtils.randomString(rnd, rnd.nextInt(255));
-        obj.bytesCol = SchemaTestUtils.randomBytes(rnd, rnd.nextInt(255));
-
-        return obj;
-    }
-
-    /**
      * Test object.
      */
     private static class TestObject {
+        /**
+         * @return Random TestObject.
+         */
+        public static TestObject randomObject(Random rnd) {
+            final TestObject obj = new TestObject();
+
+            obj.pByteCol = (byte)rnd.nextInt(255);
+            obj.pShortCol = (short)rnd.nextInt(65535);
+            obj.pIntCol = rnd.nextInt();
+            obj.pLongCol = rnd.nextLong();
+            obj.pFloatCol = rnd.nextFloat();
+            obj.pDoubleCol = rnd.nextDouble();
+
+            obj.byteCol = (byte)rnd.nextInt(255);
+            obj.shortCol = (short)rnd.nextInt(65535);
+            obj.intCol = rnd.nextInt();
+            obj.longCol = rnd.nextLong();
+            obj.floatCol = rnd.nextFloat();
+            obj.doubleCol = rnd.nextDouble();
+
+            obj.uuidCol = new UUID(rnd.nextLong(), rnd.nextLong());
+            obj.bitmaskCol = TestUtils.randomBitSet(rnd, rnd.nextInt(42));
+            obj.stringCol = TestUtils.randomString(rnd, rnd.nextInt(255));
+            obj.bytesCol = TestUtils.randomBytes(rnd, rnd.nextInt(255));
+
+            return obj;
+        }
+
+        // Primitive typed
         private byte pByteCol;
         private short pShortCol;
         private int pIntCol;
@@ -270,6 +274,7 @@ public class FieldAccessorTest {
         private float pFloatCol;
         private double pDoubleCol;
 
+        // Reference typed
         private Byte byteCol;
         private Short shortCol;
         private Integer intCol;
@@ -281,5 +286,35 @@ public class FieldAccessorTest {
         private BitSet bitmaskCol;
         private String stringCol;
         private byte[] bytesCol;
+
+        /** {@inheritDoc} */
+        @Override public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            TestObject object = (TestObject)o;
+            return pByteCol == object.pByteCol &&
+                pShortCol == object.pShortCol &&
+                pIntCol == object.pIntCol &&
+                pLongCol == object.pLongCol &&
+                Float.compare(object.pFloatCol, pFloatCol) == 0 &&
+                Double.compare(object.pDoubleCol, pDoubleCol) == 0 &&
+                Objects.equals(byteCol, object.byteCol) &&
+                Objects.equals(shortCol, object.shortCol) &&
+                Objects.equals(intCol, object.intCol) &&
+                Objects.equals(longCol, object.longCol) &&
+                Objects.equals(floatCol, object.floatCol) &&
+                Objects.equals(doubleCol, object.doubleCol) &&
+                Objects.equals(uuidCol, object.uuidCol) &&
+                Objects.equals(bitmaskCol, object.bitmaskCol) &&
+                Objects.equals(stringCol, object.stringCol) &&
+                Arrays.equals(bytesCol, object.bytesCol);
+        }
+
+        /** {@inheritDoc} */
+        @Override public int hashCode() {
+            return 73;
+        }
     }
 }

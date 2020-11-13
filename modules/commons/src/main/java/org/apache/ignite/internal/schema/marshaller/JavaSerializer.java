@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.schema.marshaller;
 
-import java.lang.reflect.Field;
 import java.util.BitSet;
 import java.util.UUID;
 import org.apache.ignite.internal.schema.ByteBufferTuple;
@@ -27,7 +26,6 @@ import org.apache.ignite.internal.schema.NativeType;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Cache objects (de)serializer.
@@ -268,7 +266,7 @@ public class JavaSerializer {
      * @param aClass Type.
      * @return Marshaller.
      */
-    @NotNull private static Marshaller createMarshaller(Columns cols, int firstColId, Class<?> aClass) {
+    private static Marshaller createMarshaller(Columns cols, int firstColId, Class<?> aClass) {
         final BinaryMode mode = mode(aClass);
 
         if (mode != null) {
@@ -325,7 +323,7 @@ public class JavaSerializer {
      * @return Tuple assembler.
      * @throws SerializationException If failed.
      */
-    @NotNull private TupleAssembler createAssembler(Object key, Object val) throws SerializationException {
+    private TupleAssembler createAssembler(Object key, Object val) throws SerializationException {
         ObjectStatistic keyStat = collectObjectStats(schema.keyColumns(), keyMarsh, key);
         ObjectStatistic valStat = collectObjectStats(schema.valueColumns(), valMarsh, val);
 

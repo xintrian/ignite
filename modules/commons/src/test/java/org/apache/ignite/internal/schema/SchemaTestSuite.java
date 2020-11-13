@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.schema;
 
+import org.apache.ignite.internal.schema.marshaller.FieldAccessorTest;
 import org.apache.ignite.internal.schema.marshaller.JavaSerializerTest;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.platform.suite.api.SelectClasses;
@@ -29,6 +30,7 @@ import org.junit.runner.RunWith;
 @RunWith(JUnitPlatform.class)
 @SelectClasses({
     JavaSerializerTest.class,
+    FieldAccessorTest.class,
     ExpandableByteBufTest.class,
     NativeTypeTest.class,
     ColumnTest.class,

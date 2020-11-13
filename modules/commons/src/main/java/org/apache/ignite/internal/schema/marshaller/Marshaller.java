@@ -37,6 +37,7 @@ package org.apache.ignite.internal.schema.marshaller;
 import java.util.Objects;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Marshaller.
@@ -85,7 +86,7 @@ public class Marshaller {
      * @return Field value.
      * @throws SerializationException If failed.
      */
-    public Object value(Object obj, int fldIdx) throws SerializationException {
+    public @Nullable Object value(Object obj, int fldIdx) throws SerializationException {
         return fieldAccessors[fldIdx].value(obj);
     }
 

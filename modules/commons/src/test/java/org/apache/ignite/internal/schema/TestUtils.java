@@ -23,7 +23,7 @@ import java.util.Random;
 /**
  * Test utility class.
  */
-public class SchemaTestUtils {
+public class TestUtils {
     /**
      * Generates randon value of given type.
      *

@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.schema.marshaller;
 
 import java.util.Random;
+import org.apache.ignite.internal.schema.Bitmask;
 import org.apache.ignite.internal.schema.Column;
 import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.NativeType;
@@ -81,6 +82,7 @@ public class JavaSerializerTest {
         checkBasicType(FLOAT, FLOAT);
         checkBasicType(DOUBLE, DOUBLE);
         checkBasicType(UUID, UUID);
+        checkBasicType(Bitmask.of(4), Bitmask.of(5));
 
         // Varlen types:
         checkBasicType(BYTES, BYTES);
@@ -90,6 +92,7 @@ public class JavaSerializerTest {
         checkBasicType(LONG, INTEGER);
         checkBasicType(INTEGER, BYTES);
         checkBasicType(STRING, LONG);
+        checkBasicType(Bitmask.of(9), BYTES);
     }
 
     /**

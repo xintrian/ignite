@@ -21,7 +21,7 @@ import java.util.BitSet;
 import java.util.Random;
 
 /**
- *  Test utility class.
+ * Test utility class.
  */
 public class SchemaTestUtils {
     /**
@@ -29,6 +29,7 @@ public class SchemaTestUtils {
      *
      * @param rnd Random generator.
      * @param type Type.
+     * @return Random object of asked type.
      */
     public static Object generateRandomValue(Random rnd, NativeType type) {
         switch (type.spec()) {
@@ -53,46 +54,68 @@ public class SchemaTestUtils {
             case UUID:
                 return new java.util.UUID(rnd.nextLong(), rnd.nextLong());
 
-            case STRING: {
-                int size = rnd.nextInt(255);
+            case STRING:
+                return randomString(rnd, rnd.nextInt(255));
 
-                StringBuilder sb = new StringBuilder();
-
-                while (sb.length() < size) {
-                    char pt = (char)rnd.nextInt(Character.MAX_VALUE + 1);
-
-                    if (Character.isDefined(pt) &&
-                        Character.getType(pt) != Character.PRIVATE_USE &&
-                        !Character.isSurrogate(pt))
-                        sb.append(pt);
-                }
-
-                return sb.toString();
-            }
-
-            case BYTES: {
-                int size = rnd.nextInt(255);
-                byte[] data = new byte[size];
-                rnd.nextBytes(data);
-
-                return data;
-            }
+            case BYTES:
+                return randomBytes(rnd, rnd.nextInt(255));
 
             case BITMASK: {
                 Bitmask maskType = (Bitmask)type;
 
-                BitSet set = new BitSet();
-
-                for (int i = 0; i < maskType.bits(); i++) {
-                    if (rnd.nextBoolean())
-                        set.set(i);
-                }
-
-                return set;
+                return randomBitSet(rnd, maskType.bits());
             }
 
             default:
                 throw new IllegalStateException("Unsupported type: " + type);
         }
+    }
+
+    /**
+     * @param rnd Random generator.
+     * @param bits Amount of bits in bitset.
+     * @return Random BitSet.
+     */
+    public static BitSet randomBitSet(Random rnd, int bits) {
+        BitSet set = new BitSet();
+
+        for (int i = 0; i < bits; i++) {
+            if (rnd.nextBoolean())
+                set.set(i);
+        }
+
+        return set;
+    }
+
+    /**
+     * @param rnd Random generator.
+     * @param len Byte array length.
+     * @return Radmon byte array.
+     */
+    public static byte[] randomBytes(Random rnd, int len) {
+        byte[] data = new byte[len];
+        rnd.nextBytes(data);
+
+        return data;
+    }
+
+    /**
+     * @param rnd Random generator.
+     * @param len String length.
+     * @return Randon string.
+     */
+    public static String randomString(Random rnd, int len) {
+        StringBuilder sb = new StringBuilder();
+
+        while (sb.length() < len) {
+            char pt = (char)rnd.nextInt(Character.MAX_VALUE + 1);
+
+            if (Character.isDefined(pt) &&
+                Character.getType(pt) != Character.PRIVATE_USE &&
+                !Character.isSurrogate(pt))
+                sb.append(pt);
+        }
+
+        return sb.toString();
     }
 }

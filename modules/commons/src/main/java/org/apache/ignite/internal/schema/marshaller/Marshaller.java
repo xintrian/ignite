@@ -97,7 +97,7 @@ public class Marshaller {
      * @throws SerializationException If failed.
      */
     public Object readObject(Tuple reader) throws SerializationException {
-        if (isBasicMarshaller())
+        if (isBasicTypeMarshaller())
             return fieldAccessors[0].read(reader);
 
         final Object obj = factory.newInstance();
@@ -123,7 +123,7 @@ public class Marshaller {
     /**
      * @return {@code true} if it is marshaller for basic type, {@code false} otherwise.
      */
-    private boolean isBasicMarshaller() {
+    private boolean isBasicTypeMarshaller() {
         return factory == null;
     }
 }

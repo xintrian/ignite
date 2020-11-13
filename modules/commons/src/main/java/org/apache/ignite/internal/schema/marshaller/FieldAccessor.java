@@ -56,54 +56,61 @@ public abstract class FieldAccessor {
     /**
      * Create accessor for the field.
      *
-     * @param field Field.
+     * @param type Object class.
      * @param col Mapped column.
      * @param colIdx Column index in schema.
      * @return Accessor.
      */
     //TODO: Extract a provider for this factory-method.
-    public static FieldAccessor create(Field field, Column col, int colIdx) {
-        if (field.getType().isPrimitive() && col.nullable()) //TODO: convert to assert?
-            throw new IllegalArgumentException("Failed to map non-nullable field to nullable column [name=" + field.getName() + ']');
+    public static FieldAccessor create(Class<?> type, Column col, int colIdx) {
+        try {
+            final Field field = type.getDeclaredField(col.name());
 
-        BinaryMode mode = JavaSerializer.mode(field.getType());
+            if (field.getType().isPrimitive() && col.nullable()) //TODO: convert to assert?
+                throw new IllegalArgumentException("Failed to map non-nullable field to nullable column [name=" + field.getName() + ']');
 
-        switch (mode) {
-            case P_BYTE:
-                return new BytePrimitiveAccessor(field, colIdx);
+            BinaryMode mode = JavaSerializer.mode(field.getType());
 
-            case P_SHORT:
-                return new ShortPrimitiveAccessor(field, colIdx);
+            switch (mode) {
+                case P_BYTE:
+                    return new BytePrimitiveAccessor(field, colIdx);
 
-            case P_INT:
-                return new IntPrimitiveAccessor(field, colIdx);
+                case P_SHORT:
+                    return new ShortPrimitiveAccessor(field, colIdx);
 
-            case P_LONG:
-                return new LongPrimitiveAccessor(field, colIdx);
+                case P_INT:
+                    return new IntPrimitiveAccessor(field, colIdx);
 
-            case P_FLOAT:
-                return new FloatPrimitiveAccessor(field, colIdx);
+                case P_LONG:
+                    return new LongPrimitiveAccessor(field, colIdx);
 
-            case P_DOUBLE:
-                return new DoublePrimitiveAccessor(field, colIdx);
+                case P_FLOAT:
+                    return new FloatPrimitiveAccessor(field, colIdx);
 
-            case BYTE:
-            case SHORT:
-            case INT:
-            case LONG:
-            case FLOAT:
-            case DOUBLE:
-            case STRING:
-            case UUID:
-            case BYTE_ARR:
-            case BITSET:
-                return new ReferenceFieldAccessor(field, colIdx, mode);
+                case P_DOUBLE:
+                    return new DoublePrimitiveAccessor(field, colIdx);
 
-            default:
-                assert false : "Invalid mode " + mode;
+                case BYTE:
+                case SHORT:
+                case INT:
+                case LONG:
+                case FLOAT:
+                case DOUBLE:
+                case STRING:
+                case UUID:
+                case BYTE_ARR:
+                case BITSET:
+                    return new ReferenceFieldAccessor(field, colIdx, mode);
+
+                default:
+                    assert false : "Invalid mode " + mode;
+            }
+
+            throw new IllegalArgumentException("Failed to create accessor for field [name=" + field.getName() + ']');
         }
-
-        throw new IllegalArgumentException("Failed to create accessor for field [name=" + field.getName() + ']');
+        catch (NoSuchFieldException | SecurityException ex) {
+            throw new IllegalArgumentException(ex);
+        }
     }
 
     /**
@@ -184,7 +191,7 @@ public abstract class FieldAccessor {
             write0(Objects.requireNonNull(obj), writer);
         }
         catch (Exception ex) {
-            if (includeSensitive())
+            if (includeSensitive() && field != null)
                 throw new SerializationException("Failed to write field [name=" + field.getName() + ']', ex);
             else
                 throw new SerializationException("Failed to write field [id=" + colIdx + ']', ex);

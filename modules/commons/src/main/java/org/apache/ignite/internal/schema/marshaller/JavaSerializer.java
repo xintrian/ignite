@@ -281,23 +281,17 @@ public class JavaSerializer {
             return new Marshaller(FieldAccessor.createIdentityAccessor(col, firstColId, mode));
         }
 
-        try {
-            FieldAccessor[] fieldAccessors = new FieldAccessor[cols.length()];
+        FieldAccessor[] fieldAccessors = new FieldAccessor[cols.length()];
 
-            // Build accessors
-            for (int i = 0; i < cols.length(); i++) {
-                final Column col = cols.column(i);
-                final Field field = aClass.getDeclaredField(col.name());
+        // Build accessors
+        for (int i = 0; i < cols.length(); i++) {
+            final Column col = cols.column(i);
 
-                final int colIdx = firstColId + i; /* Absolute column idx in schema. */
-                fieldAccessors[i] = FieldAccessor.create(field, col, colIdx);
-            }
-
-            return new Marshaller(ObjectFactory.classFactory(aClass), fieldAccessors);
+            final int colIdx = firstColId + i; /* Absolute column idx in schema. */
+            fieldAccessors[i] = FieldAccessor.create(aClass, col, colIdx);
         }
-        catch (NoSuchFieldException | SecurityException ex) {
-            throw new IllegalStateException(ex);
-        }
+
+        return new Marshaller(ObjectFactory.classFactory(aClass), fieldAccessors);
     }
 
     /**
@@ -368,7 +362,8 @@ public class JavaSerializer {
      * @return Object statistic.
      * @throws SerializationException If failed.
      */
-    private ObjectStatistic collectObjectStats(Columns cols, Marshaller marsh, Object obj) throws SerializationException {
+    private ObjectStatistic collectObjectStats(Columns cols, Marshaller marsh, Object obj)
+        throws SerializationException {
         if (obj == null || cols.firstVarlengthColumn() < 0 /* No varlen columns */)
             return new ObjectStatistic(0, 0);
 

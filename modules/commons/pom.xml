@@ -32,10 +32,13 @@
     <properties> <!-- TODO: Move section to some parent module. -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- Dependencies versions -->
         <jetbrains.annotations.version>20.1.0</jetbrains.annotations.version>
         <junit.jupiter.version>5.7.0</junit.jupiter.version>
         <junit.platform.version>1.7.0</junit.platform.version>
+        <mockito.version>1.10.19</mockito.version>
 
+        <!-- Maven plugins versions. -->
         <apache.rat.plugin.version>0.13</apache.rat.plugin.version>
         <maven.compiler.plugin.version>3.8.1</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.0.0-M4</maven.surefire.plugin.version>
@@ -149,6 +152,7 @@
             <version>${jetbrains.annotations.version}</version>
         </dependency>
 
+        <!-- Test dependencies. -->
         <!--JUnit 5-->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -156,11 +160,17 @@
             <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-runner</artifactId>
             <version>${junit.platform.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

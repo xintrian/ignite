@@ -23,13 +23,13 @@ import org.apache.ignite.internal.schema.Column;
 import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
+import org.apache.ignite.internal.util.IgniteUnsafeUtils;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Field accessor to speedup access.
  */
-//TODO: Rewrite to direct field access via Unsafe to bypass security checks.
-//TODO: Extract interface, move to java-8 profile and add implementation based on VarHandle for java9+.
+// TODO: Extract interface, move to java-8 profile and add Java9+ implementation using VarHandles.
 public abstract class FieldAccessor {
     /**
      * TODO: implement sesitive information filtering.
@@ -40,11 +40,14 @@ public abstract class FieldAccessor {
         return true;
     }
 
-    /** Field name */
-    protected final Field field;
+    /** Offset. */
+    protected final long offset;
 
     /** Mode. */
     protected final BinaryMode mode;
+
+    /** Field name */
+    protected final String name;
 
     /**
      * Mapped column position in schema.
@@ -61,12 +64,11 @@ public abstract class FieldAccessor {
      * @param colIdx Column index in schema.
      * @return Accessor.
      */
-    //TODO: Extract a provider for this factory-method.
-    public static FieldAccessor create(Class<?> type, Column col, int colIdx) {
+    static FieldAccessor create(Class<?> type, Column col, int colIdx) {
         try {
             final Field field = type.getDeclaredField(col.name());
 
-            if (field.getType().isPrimitive() && col.nullable()) //TODO: convert to assert?
+            if (field.getType().isPrimitive() && col.nullable())
                 throw new IllegalArgumentException("Failed to map non-nullable field to nullable column [name=" + field.getName() + ']');
 
             BinaryMode mode = JavaSerializer.mode(field.getType());
@@ -159,15 +161,32 @@ public abstract class FieldAccessor {
      * @param mode Binary mode;
      */
     protected FieldAccessor(Field field, int colIdx, BinaryMode mode) {
+        assert field != null;
         assert colIdx >= 0;
         assert mode != null;
 
-        this.field = field;
         this.colIdx = colIdx;
         this.mode = mode;
+        offset = IgniteUnsafeUtils.objectFieldOffset(field);
+        name = field.getName();
 
-        if (field != null)
-            field.setAccessible(true);
+        field.setAccessible(true);
+    }
+
+    /**
+     * Protected constructor.
+     *
+     * @param colIdx Column index.
+     * @param mode Binary mode;
+     */
+    private FieldAccessor(int colIdx, BinaryMode mode) {
+        assert colIdx >= 0;
+        assert mode != null;
+
+        this.colIdx = colIdx;
+        this.mode = mode;
+        offset = 0;
+        name = null;
     }
 
     /**
@@ -191,8 +210,8 @@ public abstract class FieldAccessor {
             write0(Objects.requireNonNull(obj), writer);
         }
         catch (Exception ex) {
-            if (includeSensitive() && field != null)
-                throw new SerializationException("Failed to write field [name=" + field.getName() + ']', ex);
+            if (includeSensitive() && name != null)
+                throw new SerializationException("Failed to write field [name=" + name + ']', ex);
             else
                 throw new SerializationException("Failed to write field [id=" + colIdx + ']', ex);
         }
@@ -219,8 +238,8 @@ public abstract class FieldAccessor {
             read0(Objects.requireNonNull(obj), reader);
         }
         catch (Exception ex) {
-            if (includeSensitive())
-                throw new SerializationException("Failed to read field [name=" + field.getName() + ']', ex);
+            if (includeSensitive() && name != null)
+                throw new SerializationException("Failed to read field [name=" + name + ']', ex);
             else
                 throw new SerializationException("Failed to read field [id=" + colIdx + ']', ex);
         }
@@ -250,18 +269,9 @@ public abstract class FieldAccessor {
      *
      * @param obj Object.
      * @return Field value of given object.
-     * @throws SerializationException If failed.
      */
-    @Nullable Object value(Object obj) throws SerializationException {
-        try {
-            return field.get(Objects.requireNonNull(obj));
-        }
-        catch (IllegalAccessException ex) {
-            if (includeSensitive())
-                throw new SerializationException("Failed to read field [name=" + field.getName() + ']', ex);
-            else
-                throw new SerializationException("Failed to read field [id=" + colIdx + ']', ex);
-        }
+    @Nullable Object value(Object obj) {
+        return IgniteUnsafeUtils.getObjectField(Objects.requireNonNull(obj), offset);
     }
 
     /**
@@ -275,7 +285,7 @@ public abstract class FieldAccessor {
          * @param mode Binary mode.
          */
         public IdentityAccessor(int colIdx, BinaryMode mode) {
-            super(null, colIdx, mode);
+            super(colIdx, mode);
         }
 
         /** {@inheritDoc} */
@@ -314,13 +324,17 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
-            writer.appendByte(field.getByte(obj));
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            final byte val = IgniteUnsafeUtils.getByteField(obj, offset);
+
+            writer.appendByte(val);
         }
 
         /** {@inheritDoc} */
-        @Override protected void read0(Object obj, Tuple reader) throws IllegalAccessException {
-            field.setByte(obj, reader.byteValue(colIdx));
+        @Override protected void read0(Object obj, Tuple reader) {
+            final byte val = reader.byteValue(colIdx);
+
+            IgniteUnsafeUtils.putByteField(obj, offset, val);
         }
     }
 
@@ -339,13 +353,17 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
-            writer.appendShort(field.getShort(obj));
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            final short val = IgniteUnsafeUtils.getShortField(obj, offset);
+
+            writer.appendShort(val);
         }
 
         /** {@inheritDoc} */
-        @Override protected void read0(Object obj, Tuple reader) throws IllegalAccessException {
-            field.setShort(obj, reader.shortValue(colIdx));
+        @Override protected void read0(Object obj, Tuple reader) {
+            final short val = reader.shortValue(colIdx);
+
+            IgniteUnsafeUtils.putShortField(obj, offset, val);
         }
     }
 
@@ -364,13 +382,17 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
-            writer.appendInt(field.getInt(obj));
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            final int val = IgniteUnsafeUtils.getIntField(obj, offset);
+
+            writer.appendInt(val);
         }
 
         /** {@inheritDoc} */
-        @Override protected void read0(Object obj, Tuple reader) throws IllegalAccessException {
-            field.setInt(obj, reader.intValue(colIdx));
+        @Override protected void read0(Object obj, Tuple reader) {
+            final int val = reader.intValue(colIdx);
+
+            IgniteUnsafeUtils.putIntField(obj, offset, val);
         }
     }
 
@@ -389,13 +411,17 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
-            writer.appendLong(field.getLong(obj));
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            final long val = IgniteUnsafeUtils.getLongField(obj, offset);
+
+            writer.appendLong(val);
         }
 
         /** {@inheritDoc} */
-        @Override protected void read0(Object obj, Tuple reader) throws IllegalAccessException {
-            field.setLong(obj, reader.longValue(colIdx));
+        @Override protected void read0(Object obj, Tuple reader) {
+            final long val = reader.longValue(colIdx);
+
+            IgniteUnsafeUtils.putLongField(obj, offset, val);
         }
     }
 
@@ -414,13 +440,17 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
-            writer.appendFloat(field.getFloat(obj));
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            final float val = IgniteUnsafeUtils.getFloatField(obj, offset);
+
+            writer.appendFloat(val);
         }
 
         /** {@inheritDoc} */
-        @Override protected void read0(Object obj, Tuple reader) throws IllegalAccessException {
-            field.setFloat(obj, reader.floatValue(colIdx));
+        @Override protected void read0(Object obj, Tuple reader) {
+            final float val = reader.floatValue(colIdx);
+
+            IgniteUnsafeUtils.putFloatField(obj, offset, val);
         }
     }
 
@@ -439,13 +469,17 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
-            writer.appendDouble(field.getDouble(obj));
+        @Override protected void write0(Object obj, TupleAssembler writer) {
+            final double val = IgniteUnsafeUtils.getDoubleField(obj, offset);
+
+            writer.appendDouble(val);
         }
 
         /** {@inheritDoc} */
-        @Override protected void read0(Object obj, Tuple reader) throws IllegalAccessException {
-            field.setDouble(obj, reader.doubleValue(colIdx));
+        @Override protected void read0(Object obj, Tuple reader) {
+            final double val = reader.doubleValue(colIdx);
+
+            IgniteUnsafeUtils.putDoubleField(obj, offset, val);
         }
     }
 
@@ -465,13 +499,13 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override protected void write0(Object obj, TupleAssembler writer) throws IllegalAccessException {
+        @Override protected void write0(Object obj, TupleAssembler writer) {
             assert obj != null;
             assert writer != null;
 
             Object val;
 
-            val = field.get(obj);
+            val = IgniteUnsafeUtils.getObjectField(obj, offset);
 
             if (val == null) {
                 writer.appendNull();
@@ -483,12 +517,10 @@ public abstract class FieldAccessor {
         }
 
         /** {@inheritDoc} */
-        @Override public void read0(Object obj, Tuple reader) throws IllegalAccessException {
+        @Override public void read0(Object obj, Tuple reader) {
             Object val = JavaSerializer.readRefValue(reader, colIdx, mode);
 
-            assert !field.getType().isPrimitive();
-
-            field.set(obj, val);
+            IgniteUnsafeUtils.putObjectField(obj, offset, val);
         }
     }
 }

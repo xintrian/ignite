@@ -20,7 +20,6 @@ package org.apache.ignite.internal.schema.marshaller;
 import java.util.BitSet;
 import java.util.UUID;
 import org.apache.ignite.internal.schema.ByteBufferTuple;
-import org.apache.ignite.internal.schema.Column;
 import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.NativeType;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
@@ -254,42 +253,8 @@ public class JavaSerializer {
         this.keyClass = keyClass;
         this.valClass = valClass;
 
-        keyMarsh = createMarshaller(schema.keyColumns(), 0, keyClass);
-        valMarsh = createMarshaller(schema.valueColumns(), schema.keyColumns().length(), valClass);
-    }
-
-    /**
-     * Creates marshaller for class.
-     *
-     * @param cols Columns.
-     * @param firstColId First column position in schema.
-     * @param aClass Type.
-     * @return Marshaller.
-     */
-    private static Marshaller createMarshaller(Columns cols, int firstColId, Class<?> aClass) {
-        final BinaryMode mode = mode(aClass);
-
-        if (mode != null) {
-            final Column col = cols.column(0);
-
-            assert cols.length() == 1;
-            assert mode.typeSpec() == col.type().spec() : "Target type is not compatible.";
-            assert !aClass.isPrimitive() : "Non-nullable types are not allowed.";
-
-            return new Marshaller(FieldAccessor.createIdentityAccessor(col, firstColId, mode));
-        }
-
-        FieldAccessor[] fieldAccessors = new FieldAccessor[cols.length()];
-
-        // Build accessors
-        for (int i = 0; i < cols.length(); i++) {
-            final Column col = cols.column(i);
-
-            final int colIdx = firstColId + i; /* Absolute column idx in schema. */
-            fieldAccessors[i] = FieldAccessor.create(aClass, col, colIdx);
-        }
-
-        return new Marshaller(ObjectFactory.classFactory(aClass), fieldAccessors);
+        keyMarsh = MarshallerFactory.createMarshaller(schema.keyColumns(), 0, keyClass);
+        valMarsh = MarshallerFactory.createMarshaller(schema.valueColumns(), schema.keyColumns().length(), valClass);
     }
 
     /**
@@ -335,33 +300,14 @@ public class JavaSerializer {
     }
 
     /**
-     * Object statistic.
-     */
-    private static class ObjectStatistic {
-        /** Non-null fields of varlen type. */
-        int nonNullFields;
-
-        /** Length of all non-null fields of varlen types. */
-        int nonNullFieldsSize;
-
-        /** Constructor. */
-        public ObjectStatistic(int nonNullFields, int nonNullFieldsSize) {
-            this.nonNullFields = nonNullFields;
-            this.nonNullFieldsSize = nonNullFieldsSize;
-        }
-    }
-
-    /**
      * Reads object fields and gather statistic.
      *
      * @param cols Schema columns.
      * @param marsh Marshaller.
      * @param obj Object.
      * @return Object statistic.
-     * @throws SerializationException If failed.
      */
-    private ObjectStatistic collectObjectStats(Columns cols, Marshaller marsh, Object obj)
-        throws SerializationException {
+    private ObjectStatistic collectObjectStats(Columns cols, Marshaller marsh, Object obj) {
         if (obj == null || cols.firstVarlengthColumn() < 0 /* No varlen columns */)
             return new ObjectStatistic(0, 0);
 
@@ -427,5 +373,22 @@ public class JavaSerializer {
         assert valClass.isInstance(o);
 
         return o;
+    }
+
+    /**
+     * Object statistic.
+     */
+    private static class ObjectStatistic {
+        /** Non-null fields of varlen type. */
+        int nonNullFields;
+
+        /** Length of all non-null fields of varlen types. */
+        int nonNullFieldsSize;
+
+        /** Constructor. */
+        public ObjectStatistic(int nonNullFields, int nonNullFieldsSize) {
+            this.nonNullFields = nonNullFields;
+            this.nonNullFieldsSize = nonNullFieldsSize;
+        }
     }
 }

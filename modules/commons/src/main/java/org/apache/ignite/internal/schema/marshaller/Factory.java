@@ -17,31 +17,15 @@
 
 package org.apache.ignite.internal.schema.marshaller;
 
-import org.apache.ignite.internal.util.IgniteUnsafeUtils;
-
 /**
- * Object factory.
+ * Factory interface.
+ * @param <T> Object type.
  */
-class ObjectFactory<T> implements Factory<T> {
-    /** Class. */
-    private final Class<T> tClass;
-
+public interface Factory<T> {
     /**
-     * Constructor.
+     * Creates object.
      *
-     * @param tClass Class.
+     * @return Object.
      */
-    ObjectFactory(Class<T> tClass) {
-        this.tClass = tClass;
-    }
-
-    /** {@inheritDoc} */
-    @Override public T create() throws IllegalStateException {
-        try {
-            return (T)IgniteUnsafeUtils.allocateInstance(tClass);
-        }
-        catch (InstantiationException e) {
-            throw new IllegalStateException("Failed to instantiate class: " + tClass.getSimpleName(), e);
-        }
-    }
+    public T create();
 }

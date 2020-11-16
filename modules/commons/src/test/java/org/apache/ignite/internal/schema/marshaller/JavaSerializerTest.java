@@ -215,9 +215,8 @@ public class JavaSerializerTest {
     /**
      *
      */
-    @SuppressWarnings("ResultOfObjectAllocationIgnored")
     @Test
-    public void testClassWithNoDefaultConstructor() {
+    public void testClassWithNoDefaultConstructor() throws SerializationException {
         Column[] cols = new Column[] {
             new Column("pLongCol", LONG, false),
         };
@@ -227,10 +226,18 @@ public class JavaSerializerTest {
         final Object key = WrongTestObject.randomObject(rnd);
         final Object val = WrongTestObject.randomObject(rnd);
 
-        assertThrows(IllegalStateException.class,
-            () -> new JavaSerializer(schema, key.getClass(), val.getClass()),
-            "No default constructor found for class: WrongTestObject"
-        );
+        final JavaSerializer serializer = new JavaSerializer(schema, key.getClass(), val.getClass());
+
+        final byte[] bytes = serializer.serialize(key, val);
+
+        Object key1 = serializer.deserializeKey(bytes);
+        Object val1 = serializer.deserializeValue(bytes);
+
+        assertTrue(key.getClass().isInstance(key1));
+        assertTrue(val.getClass().isInstance(val1));
+
+        assertEquals(key, key);
+        assertEquals(val, val1);
     }
 
     /**

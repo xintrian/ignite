@@ -52,7 +52,7 @@ public class Marshaller {
     /**
      * Object factory for complex types or {@code null} for basic type.
      */
-    private final ObjectFactory<?> factory;
+    private final Factory<?> factory;
 
     /**
      * Constructor.
@@ -62,7 +62,7 @@ public class Marshaller {
      * @param fieldAccessors Object field accessors for mapped columns.
      */
     @SuppressWarnings("AssignmentOrReturnOfFieldWithMutableType")
-    public Marshaller(ObjectFactory<?> factory, FieldAccessor[] fieldAccessors) {
+    public Marshaller(Factory<?> factory, FieldAccessor[] fieldAccessors) {
         this.fieldAccessors = fieldAccessors;
         this.factory = Objects.requireNonNull(factory);
     }
@@ -84,9 +84,8 @@ public class Marshaller {
      * @param obj Object.
      * @param fldIdx Field index.
      * @return Field value.
-     * @throws SerializationException If failed.
      */
-    public @Nullable Object value(Object obj, int fldIdx) throws SerializationException {
+    public @Nullable Object value(Object obj, int fldIdx) {
         return fieldAccessors[fldIdx].value(obj);
     }
 
@@ -101,7 +100,7 @@ public class Marshaller {
         if (isBasicTypeMarshaller())
             return fieldAccessors[0].read(reader);
 
-        final Object obj = factory.newInstance();
+        final Object obj = factory.create();
 
         for (int fldIdx = 0; fldIdx < fieldAccessors.length; fldIdx++)
             fieldAccessors[fldIdx].read(obj, reader);

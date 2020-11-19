@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.ignite.internal.schema.Bitmask;
 import org.apache.ignite.internal.schema.Column;
 import org.apache.ignite.internal.schema.Columns;
@@ -31,6 +32,8 @@ import org.apache.ignite.internal.schema.NativeTypeSpec;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DynamicNode;
+import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -45,7 +48,10 @@ import static org.apache.ignite.internal.schema.NativeType.STRING;
 import static org.apache.ignite.internal.schema.NativeType.UUID;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.DynamicContainer.dynamicContainer;
+import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 /**
  * Serializer test.
@@ -77,6 +83,33 @@ public class JavaSerializerTest {
     /**
      *
      */
+    @TestFactory
+    public Stream<DynamicNode> testBasicTypes() {
+        NativeType[] types = new NativeType[] {BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, UUID, STRING, BYTES, Bitmask.of(5)};
+
+        return serializerFactoryProvider().stream().map(factory ->
+            dynamicContainer(factory.getClass().getSimpleName(),
+                Stream.concat(
+                    // Test pure types.
+                    Stream.of(types).map(type ->
+                        dynamicTest("testBasicTypes(" + type.spec().name() + ')', () -> checkBasicType(factory, type, type))
+                    ),
+
+                    // Test pairs of mixed types.
+                    Stream.of(
+                        dynamicTest("testMixTypes 1", () -> checkBasicType(factory, LONG, INTEGER)),
+                        dynamicTest("testMixTypes 1", () -> checkBasicType(factory, FLOAT, DOUBLE)),
+                        dynamicTest("testMixTypes 1", () -> checkBasicType(factory, INTEGER, BYTES)),
+                        dynamicTest("testMixTypes 1", () -> checkBasicType(factory, STRING, LONG)),
+                        dynamicTest("testMixTypes 1", () -> checkBasicType(factory, Bitmask.of(9), BYTES))
+                    )
+                )
+            ));
+    }
+
+    /**
+     *
+     */
     @ParameterizedTest
     @MethodSource("serializerFactoryProvider")
     public void testBasicTypes(SerializerFactory factory) throws SerializationException {
@@ -102,163 +135,160 @@ public class JavaSerializerTest {
         checkBasicType(factory, Bitmask.of(9), BYTES);
     }
 
-//    /**
-//     * @throws SerializationException If serialization failed.
-//     */
-//    @ParameterizedTest
-//    @DisplayName("testComplexType")
-//    @MethodSource("serializerFactoryProvider")
-//    public void testComplexType(SerializerFactory factory) throws SerializationException {
-//        Column[] cols = new Column[] {
-//            new Column("pByteCol", BYTE, false),
-//            new Column("pShortCol", SHORT, false),
-//            new Column("pIntCol", INTEGER, false),
-//            new Column("pLongCol", LONG, false),
-//            new Column("pFloatCol", FLOAT, false),
-//            new Column("pDoubleCol", DOUBLE, false),
-//
-//            new Column("byteCol", BYTE, true),
-//            new Column("shortCol", SHORT, true),
-//            new Column("intCol", INTEGER, true),
-//            new Column("longCol", LONG, true),
-//            new Column("floatCol", FLOAT, true),
-//            new Column("doubleCol", DOUBLE, true),
-//
-//            new Column("uuidCol", UUID, true),
-//            new Column("bitmaskCol", Bitmask.of(42), true),
-//            new Column("stringCol", STRING, true),
-//            new Column("bytesCol", BYTES, true),
-//        };
-//
-//        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
-//
-//        final Object key = TestObject.randomObject(rnd);
-//        final Object val = TestObject.randomObject(rnd);
-//
-//        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
-//
-//        byte[] bytes = serializer.serialize(key, val);
-//
-//        // Try different order.
-//        Object restoredVal = serializer.deserializeValue(bytes);
-//        Object restoredKey = serializer.deserializeKey(bytes);
-//
-//        assertTrue(key.getClass().isInstance(restoredKey));
-//        assertTrue(val.getClass().isInstance(restoredVal));
-//
-//        assertEquals(key, restoredKey);
-//        assertEquals(val, restoredVal);
-//    }
-//
-//    /**
-//     *
-//     */
-//    @ParameterizedTest
-//    @MethodSource("serializerFactoryProvider")
-//    public void testClassWithIncorrectBitmaskSize(SerializerFactory factory) {
-//        Column[] cols = new Column[] {
-//            new Column("pLongCol", LONG, false),
-//            new Column("bitmaskCol", Bitmask.of(9), true),
-//        };
-//
-//        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
-//
-//        final Object key = TestObject.randomObject(rnd);
-//        final Object val = TestObject.randomObject(rnd);
-//
-//        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
-//
-//        assertThrows(
-//            SerializationException.class,
-//            () -> serializer.serialize(key, val),
-//            "Failed to write field [name=bitmaskCol]"
-//        );
-//    }
-//
-//    /**
-//     *
-//     */
-//    @ParameterizedTest
-//    @DisplayName("testClassWithWrongFieldType")
-//    @MethodSource("serializerFactoryProvider")
-//    public void testClassWithWrongFieldType(SerializerFactory factory) throws Exception {
-//        Column[] cols = new Column[] {
-//            new Column("bitmaskCol", Bitmask.of(42), true),
-//            new Column("shortCol", UUID, true)
-//        };
-//
-//        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
-//
-//        final Object key = TestObject.randomObject(rnd);
-//        final Object val = TestObject.randomObject(rnd);
-//
-//        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
-//
-//        assertThrows(
-//            SerializationException.class,
-//            () -> serializer.serialize(key, val),
-//            "Failed to write field [name=shortCol]"
-//        );
-//    }
-//
-//    /**
-//     *
-//     */
-//    @ParameterizedTest
-//    @MethodSource("serializerFactoryProvider")
-//    public void testClassWithPrivateConstructor(SerializerFactory factory) throws SerializationException {
-//        Column[] cols = new Column[] {
-//            new Column("pLongCol", LONG, false),
-//        };
-//
-//        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
-//
-//        final Object key = PrivateTestObject.randomObject(rnd);
-//        final Object val = PrivateTestObject.randomObject(rnd);
-//
-//        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
-//
-//        byte[] bytes = serializer.serialize(key, val);
-//
-//        Object key1 = serializer.deserializeKey(bytes);
-//        Object val1 = serializer.deserializeValue(bytes);
-//
-//        assertTrue(key.getClass().isInstance(key1));
-//        assertTrue(val.getClass().isInstance(val1));
-//
-//        assertEquals(key, key);
-//        assertEquals(val, val1);
-//    }
-//
-//    /**
-//     *
-//     */
-//    @ParameterizedTest
-//    @DisplayName("testClassWithNoDefaultConstructor")
-//    @MethodSource("serializerFactoryProvider")
-//    public void testClassWithNoDefaultConstructor(SerializerFactory factory) throws SerializationException {
-//        Column[] cols = new Column[] {
-//            new Column("pLongCol", LONG, false),
-//        };
-//
-//        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
-//
-//        final Object key = WrongTestObject.randomObject(rnd);
-//        final Object val = WrongTestObject.randomObject(rnd);
-//
-//        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
-//
-//        byte[] bytes = serializer.serialize(key, val);
-//
-//        Object key1 = serializer.deserializeKey(bytes);
-//        Object val1 = serializer.deserializeValue(bytes);
-//
-//        assertTrue(key.getClass().isInstance(key1));
-//        assertTrue(val.getClass().isInstance(val1));
-//
-//        assertEquals(key, key);
-//        assertEquals(val, val1);
-//    }
+    /**
+     * @throws SerializationException If serialization failed.
+     */
+    @ParameterizedTest
+    @MethodSource("serializerFactoryProvider")
+    public void testComplexType(SerializerFactory factory) throws SerializationException {
+        Column[] cols = new Column[] {
+            new Column("pByteCol", BYTE, false),
+            new Column("pShortCol", SHORT, false),
+            new Column("pIntCol", INTEGER, false),
+            new Column("pLongCol", LONG, false),
+            new Column("pFloatCol", FLOAT, false),
+            new Column("pDoubleCol", DOUBLE, false),
+
+            new Column("byteCol", BYTE, true),
+            new Column("shortCol", SHORT, true),
+            new Column("intCol", INTEGER, true),
+            new Column("longCol", LONG, true),
+            new Column("floatCol", FLOAT, true),
+            new Column("doubleCol", DOUBLE, true),
+
+            new Column("uuidCol", UUID, true),
+            new Column("bitmaskCol", Bitmask.of(42), true),
+            new Column("stringCol", STRING, true),
+            new Column("bytesCol", BYTES, true),
+        };
+
+        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
+
+        final Object key = TestObject.randomObject(rnd);
+        final Object val = TestObject.randomObject(rnd);
+
+        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
+
+        byte[] bytes = serializer.serialize(key, val);
+
+        // Try different order.
+        Object restoredVal = serializer.deserializeValue(bytes);
+        Object restoredKey = serializer.deserializeKey(bytes);
+
+        assertTrue(key.getClass().isInstance(restoredKey));
+        assertTrue(val.getClass().isInstance(restoredVal));
+
+        assertEquals(key, restoredKey);
+        assertEquals(val, restoredVal);
+    }
+
+    /**
+     *
+     */
+    @ParameterizedTest
+    @MethodSource("serializerFactoryProvider")
+    public void testClassWithIncorrectBitmaskSize(SerializerFactory factory) {
+        Column[] cols = new Column[] {
+            new Column("pLongCol", LONG, false),
+            new Column("bitmaskCol", Bitmask.of(9), true),
+        };
+
+        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
+
+        final Object key = TestObject.randomObject(rnd);
+        final Object val = TestObject.randomObject(rnd);
+
+        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
+
+        assertThrows(
+            SerializationException.class,
+            () -> serializer.serialize(key, val),
+            "Failed to write field [name=bitmaskCol]"
+        );
+    }
+
+    /**
+     *
+     */
+    @ParameterizedTest
+    @MethodSource("serializerFactoryProvider")
+    public void testClassWithWrongFieldType(SerializerFactory factory) {
+        Column[] cols = new Column[] {
+            new Column("bitmaskCol", Bitmask.of(42), true),
+            new Column("shortCol", UUID, true)
+        };
+
+        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
+
+        final Object key = TestObject.randomObject(rnd);
+        final Object val = TestObject.randomObject(rnd);
+
+        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
+
+        assertThrows(
+            SerializationException.class,
+            () -> serializer.serialize(key, val),
+            "Failed to write field [name=shortCol]"
+        );
+    }
+
+    /**
+     *
+     */
+    @ParameterizedTest
+    @MethodSource("serializerFactoryProvider")
+    public void testClassWithPrivateConstructor(SerializerFactory factory) throws SerializationException {
+        Column[] cols = new Column[] {
+            new Column("pLongCol", LONG, false),
+        };
+
+        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
+
+        final Object key = PrivateTestObject.randomObject(rnd);
+        final Object val = PrivateTestObject.randomObject(rnd);
+
+        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
+
+        byte[] bytes = serializer.serialize(key, val);
+
+        Object key1 = serializer.deserializeKey(bytes);
+        Object val1 = serializer.deserializeValue(bytes);
+
+        assertTrue(key.getClass().isInstance(key1));
+        assertTrue(val.getClass().isInstance(val1));
+
+        assertEquals(key, key);
+        assertEquals(val, val1);
+    }
+
+    /**
+     *
+     */
+    @ParameterizedTest
+    @MethodSource("serializerFactoryProvider")
+    public void testClassWithNoDefaultConstructor(SerializerFactory factory) throws SerializationException {
+        Column[] cols = new Column[] {
+            new Column("pLongCol", LONG, false),
+        };
+
+        SchemaDescriptor schema = new SchemaDescriptor(1, new Columns(cols), new Columns(cols.clone()));
+
+        final Object key = WrongTestObject.randomObject(rnd);
+        final Object val = WrongTestObject.randomObject(rnd);
+
+        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
+
+        byte[] bytes = serializer.serialize(key, val);
+
+        Object key1 = serializer.deserializeKey(bytes);
+        Object val1 = serializer.deserializeValue(bytes);
+
+        assertTrue(key.getClass().isInstance(key1));
+        assertTrue(val.getClass().isInstance(val1));
+
+        assertEquals(key, key);
+        assertEquals(val, val1);
+    }
 
     /**
      * Generate random key-value pair of given types and

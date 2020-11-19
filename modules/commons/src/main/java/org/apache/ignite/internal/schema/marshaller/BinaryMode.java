@@ -22,7 +22,7 @@ import org.apache.ignite.internal.schema.NativeTypeSpec;
 /**
  * Various read/write modes for binary objects that maps Java types to binary types.
  */
-enum BinaryMode {
+public enum BinaryMode {
     /** Primitive byte. */
     P_BYTE(NativeTypeSpec.BYTE),
 

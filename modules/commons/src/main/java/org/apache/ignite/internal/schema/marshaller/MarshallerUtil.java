@@ -22,7 +22,10 @@ import java.util.UUID;
 import org.apache.ignite.internal.schema.NativeType;
 import org.apache.ignite.internal.schema.TupleAssembler;
 
-public class MarshallerUtil {
+/**
+ * Marshaller utility class.
+ */
+public final class MarshallerUtil {
     /**
      * Calculates size for serialized value of varlen type.
      *
@@ -92,4 +95,9 @@ public class MarshallerUtil {
 
         return null;
     }
+
+    /**
+     * Stub.
+     */
+    private MarshallerUtil() {}
 }

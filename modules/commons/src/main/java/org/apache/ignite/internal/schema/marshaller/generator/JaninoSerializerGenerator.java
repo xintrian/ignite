@@ -15,18 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller;
+package org.apache.ignite.internal.schema.marshaller.generator;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
+import org.apache.ignite.internal.schema.marshaller.BinaryMode;
+import org.apache.ignite.internal.schema.marshaller.MarshallerUtil;
+import org.apache.ignite.internal.schema.marshaller.Serializer;
+import org.apache.ignite.internal.schema.marshaller.SerializerFactory;
 import org.apache.ignite.internal.util.IgniteUnsafeUtils;
 import org.codehaus.commons.compiler.CompilerFactoryFactory;
 import org.codehaus.commons.compiler.IClassBodyEvaluator;
+import org.jetbrains.annotations.Nullable;
 
 /**
- *
+ * {@link Serializer} code generator backed with Janino.
  */
 public class JaninoSerializerGenerator implements SerializerFactory {
     /** Tabulate. */
@@ -35,77 +40,45 @@ public class JaninoSerializerGenerator implements SerializerFactory {
     /** Line feed. */
     static final char LF = '\n';
 
+    /** String buffer initial size. */
+    public static final int INITIAL_BUFFER_SIZE = 8 * 1024;
+
     /** Debug flag. */
     private static final boolean enabledDebug = false;
 
+    /** {@inheritDoc} */
     @Override public Serializer create(
         SchemaDescriptor schema,
         Class<?> keyClass,
         Class<?> valClass
     ) {
         try {
-            final String packageName = "org.apache.ignite.internal.schema.marshaller.";
-            final String className = "JaninoSerializerForSchema_" + schema.version();
-
             final IClassBodyEvaluator ce = CompilerFactoryFactory.getDefaultCompilerFactory().newClassBodyEvaluator();
 
-            ce.setClassName(packageName + className);
-            ce.setImplementedInterfaces(new Class[] {Serializer.class});
-            ce.setDefaultImports(
-                "java.util.UUID",
-                "java.util.BitSet",
+            // Generate Serializer code.
+            String code = generateSerializerClassCode(ce, schema, keyClass, valClass);
 
-                "org.apache.ignite.internal.schema.ByteBufferTuple",
-                "org.apache.ignite.internal.schema.Columns",
-                "org.apache.ignite.internal.schema.SchemaDescriptor",
-                "org.apache.ignite.internal.schema.Tuple",
-                "org.apache.ignite.internal.schema.TupleAssembler",
-                "org.apache.ignite.internal.util.IgniteUnsafeUtils"
-            );
+            //TODO: pass code to logger on trace level.
 
-            final StringBuilder sb = new StringBuilder(8 * 1024);
-
-            // Create class fields and constructor.
-            sb.append("private final SchemaDescriptor schema;" + LF);
-            sb.append("private final Class kClass;" + LF);
-            sb.append("private final Class vClass;" + LF);
-            // Constructor.
-            sb.append(LF + "public ").append(className).append("(SchemaDescriptor schema, Class kClass, Class vClass) {" + LF);
-            sb.append(TAB + "this.kClass = kClass;" + LF);
-            sb.append(TAB + "this.vClass = vClass;" + LF);
-            sb.append(TAB + "this.schema = schema; " + LF);
-            sb.append("}" + LF);
-
-            // Build field accessor generators.
-            final ObjectMarshallerExprGenerator keyMarsh = createObjectMarshaller(keyClass, "kClass", schema.keyColumns(), 0);
-            final ObjectMarshallerExprGenerator valMarsh = createObjectMarshaller(valClass, "vClass", schema.valueColumns(), schema.keyColumns().length());
-
-            generateTupleFactoryMethod(sb, schema, keyMarsh, valMarsh);
-
-            writeSerializeMethod(sb, keyMarsh, valMarsh);
-            writeDeserializeMethods(sb, keyMarsh, valMarsh);
-
-            final String code = sb.toString();
-
-            if (enabledDebug) {
+            if (enabledDebug)
                 ce.setDebuggingInformation(true, true, true);
-                //TODO: pass to logger.
-                System.out.println(code);
-            }
 
-            ce.setParentClassLoader(getClass().getClassLoader());
-            ce.cook(code);
+            try {  // Compile and load class.
+                ce.setParentClassLoader(getClass().getClassLoader());
+                ce.cook(code);
 
-            try {
+                // Create and return Serializer instance.
                 final Constructor<Serializer> ctor = (Constructor<Serializer>)ce.getClazz()
                     .getDeclaredConstructor(schema.getClass(), Class.class, Class.class);
 
                 return ctor.newInstance(schema, keyClass, valClass);
             }
             catch (Exception ex) {
-                System.err.println(code);
-
-                throw ex;
+                if (enabledDebug)
+                    throw new IllegalStateException("Failed to compile/instantiate generated Serializer: code=" +
+                        LF + code + LF, ex);
+                else
+                    throw new IllegalStateException("Failed to compile/instantiate generated Serializer.", ex);
             }
         }
         catch (Exception ex) {
@@ -114,12 +87,88 @@ public class JaninoSerializerGenerator implements SerializerFactory {
         }
     }
 
-    private ObjectMarshallerExprGenerator createObjectMarshaller(Class<?> aClass, String classField, Columns columns,
-        int firstColIdx) {
+    /**
+     * Generates serializer code.
+     *
+     * @param ce Class body evaluator.
+     * @param schema Schema descriptor.
+     * @param keyClass Key class.
+     * @param valClass Value class.
+     * @return Generated class code.
+     */
+    private String generateSerializerClassCode(
+        IClassBodyEvaluator ce,
+        SchemaDescriptor schema,
+        Class<?> keyClass,
+        Class<?> valClass
+    ) {
+        final String packageName = "org.apache.ignite.internal.schema.marshaller.";
+        final String className = "JaninoSerializerForSchema_" + schema.version();
+
+        // Prerequisites.
+        ce.setClassName(packageName + className);
+        ce.setImplementedInterfaces(new Class[] {Serializer.class});
+        ce.setDefaultImports(
+            "java.util.UUID",
+            "java.util.BitSet",
+
+            "org.apache.ignite.internal.schema.ByteBufferTuple",
+            "org.apache.ignite.internal.schema.Columns",
+            "org.apache.ignite.internal.schema.SchemaDescriptor",
+            "org.apache.ignite.internal.schema.Tuple",
+            "org.apache.ignite.internal.schema.TupleAssembler",
+            "org.apache.ignite.internal.util.IgniteUnsafeUtils"
+        );
+
+        // Create buffer.
+        final StringBuilder sb = new StringBuilder(INITIAL_BUFFER_SIZE);
+
+        // Append class fields desctiption.
+        sb.append("private final SchemaDescriptor schema;" + LF);
+        sb.append("private final Class kClass;" + LF);
+        sb.append("private final Class vClass;" + LF);
+
+        // Append constructor code.
+        sb.append(LF + "public ").append(className).append("(SchemaDescriptor schema, Class kClass, Class vClass) {" + LF);
+        sb.append(TAB + "this.kClass = kClass;" + LF);
+        sb.append(TAB + "this.vClass = vClass;" + LF);
+        sb.append(TAB + "this.schema = schema; " + LF);
+        sb.append("}" + LF);
+
+        // Build field accessor generators.
+        final MarshallerExprGenerator keyMarsh = createObjectMarshaller(keyClass, "kClass", schema.keyColumns(), 0);
+        final MarshallerExprGenerator valMarsh = createObjectMarshaller(valClass, "vClass", schema.valueColumns(), schema.keyColumns().length());
+
+        // Generate and append helper-methods.
+        generateTupleFactoryMethod(sb, schema, keyMarsh, valMarsh);
+
+        // Generate and append Serializer interface methods.
+        appendSerializeMethod(sb, keyMarsh, valMarsh);
+        writeDeserializeKeyMethod(sb, keyMarsh);
+        writeDeserializeValueMethod(sb, valMarsh);
+
+        return sb.toString();
+    }
+
+    /**
+     * Creates marshal/unmarshall expressions generator for object.
+     *
+     * @param aClass Object class.
+     * @param classExpr Instance class expression or {@code null} if not aplicable.
+     * @param columns Columns that aClass mapped to.
+     * @param firstColIdx First column absolute index in schema.
+     * @return Marshal/unmarshall expression generator.
+     */
+    private MarshallerExprGenerator createObjectMarshaller(
+        Class<?> aClass,
+        @Nullable String classExpr,
+        Columns columns,
+        int firstColIdx
+    ) {
         BinaryMode mode = MarshallerUtil.mode(aClass);
 
         if (mode != null)
-            return new ObjectMarshallerExprGenerator.IdentityObjectMarshaller(createAccessor(mode, firstColIdx, -1L));
+            return new IdentityObjectMarshallerExprGenerator(createAccessor(mode, firstColIdx, -1L));
 
         FieldAccessExprGenerator[] accessors = new FieldAccessExprGenerator[columns.length()];
         try {
@@ -136,23 +185,32 @@ public class JaninoSerializerGenerator implements SerializerFactory {
             throw new IllegalStateException(ex);
         }
 
-        return new ObjectMarshallerExprGenerator(classField, accessors);
+        return new MarshallerExprGenerator(classExpr, accessors);
     }
 
+    /**
+     * Created object field access expressions generator.
+     *
+     * @param mode Field access binary mode.
+     * @param colIdx Column absolute index in schema.
+     * @param offset Object field offset.
+     * @return Object field access expressions generator.
+     */
     private FieldAccessExprGenerator createAccessor(BinaryMode mode, int colIdx, long offset) {
         switch (mode) {
             case BYTE:
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "Byte",
-                    "asm.appendByte",
                     "tuple.byteValueBoxed",
+                    "asm.appendByte",
                     offset);
 
             case P_BYTE:
                 return new FieldAccessExprGenerator(
                     colIdx,
-                    "tuple.byteValue", "asm.appendByte",
+                    "tuple.byteValue",
+                    "asm.appendByte",
                     offset,
                     "IgniteUnsafeUtils.getByteField",
                     "IgniteUnsafeUtils.putByteField"
@@ -162,14 +220,15 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "Short",
-                    "asm.appendShort",
                     "tuple.shortValueBoxed",
+                    "asm.appendShort",
                     offset);
 
             case P_SHORT:
                 return new FieldAccessExprGenerator(
                     colIdx,
-                    "tuple.shortValue", "asm.appendShort",
+                    "tuple.shortValue",
+                    "asm.appendShort",
                     offset,
                     "IgniteUnsafeUtils.getShortField",
                     "IgniteUnsafeUtils.putShortField"
@@ -179,14 +238,15 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "Integer",
-                    "asm.appendInt",
                     "tuple.intValueBoxed",
+                    "asm.appendInt",
                     offset);
 
             case P_INT:
                 return new FieldAccessExprGenerator(
                     colIdx,
-                    "tuple.intValue", "asm.appendInt",
+                    "tuple.intValue",
+                    "asm.appendInt",
                     offset,
                     "IgniteUnsafeUtils.getIntField",
                     "IgniteUnsafeUtils.putIntField"
@@ -196,14 +256,15 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "Long",
-                    "asm.appendLong",
                     "tuple.longValueBoxed",
+                    "asm.appendLong",
                     offset);
 
             case P_LONG:
                 return new FieldAccessExprGenerator(
                     colIdx,
-                    "tuple.longValue", "asm.appendLong",
+                    "tuple.longValue",
+                    "asm.appendLong",
                     offset,
                     "IgniteUnsafeUtils.getLongField",
                     "IgniteUnsafeUtils.putLongField"
@@ -213,14 +274,15 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "Float",
-                    "asm.appendFloat",
                     "tuple.floatValueBoxed",
+                    "asm.appendFloat",
                     offset);
 
             case P_FLOAT:
                 return new FieldAccessExprGenerator(
                     colIdx,
-                    "tuple.floatValue", "asm.appendFloat",
+                    "tuple.floatValue",
+                    "asm.appendFloat",
                     offset,
                     "IgniteUnsafeUtils.getFloatField",
                     "IgniteUnsafeUtils.putFloatField"
@@ -230,14 +292,15 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "Double",
-                    "asm.appendDouble",
                     "tuple.doubleValueBoxed",
+                    "asm.appendDouble",
                     offset);
 
             case P_DOUBLE:
                 return new FieldAccessExprGenerator(
                     colIdx,
-                    "tuple.doubleValue", "asm.appendDouble",
+                    "tuple.doubleValue",
+                    "asm.appendDouble",
                     offset,
                     "IgniteUnsafeUtils.getDoubleField",
                     "IgniteUnsafeUtils.putDoubleField"
@@ -247,85 +310,122 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "UUID",
-                    "asm.appendUuid",
-                    "tuple.uuidValue",
+                    "tuple.uuidValue", "asm.appendUuid",
                     offset);
 
             case BITSET:
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "BitSet",
-                    "asm.appendBitmask",
-                    "tuple.bitmaskValue",
+                    "tuple.bitmaskValue", "asm.appendBitmask",
                     offset);
 
             case STRING:
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "String",
-                    "asm.appendString",
-                    "tuple.stringValue",
+                    "tuple.stringValue", "asm.appendString",
                     offset);
 
             case BYTE_ARR:
                 return new FieldAccessExprGenerator(
                     colIdx,
                     "byte[]",
-                    "asm.appendBytes",
-                    "tuple.bytesValue",
+                    "tuple.bytesValue", "asm.appendBytes",
                     offset);
             default:
                 throw new IllegalStateException("Unsupportd binary mode");
         }
     }
 
-    private void writeSerializeMethod(StringBuilder sb,
-        ObjectMarshallerExprGenerator keyMarsh,
-        ObjectMarshallerExprGenerator valMarsh
+    /**
+     * Appends {@link Serializer#serialize(Object, Object)} method code.
+     *
+     * @param sb String buffer to append to.
+     * @param keyMarsh Marshall expression generator for key.
+     * @param valMarsh Marshall expression generator for value.
+     */
+    private void appendSerializeMethod(
+        StringBuilder sb,
+        MarshallerExprGenerator keyMarsh,
+        MarshallerExprGenerator valMarsh
     ) {
+        // Mehtod signature.
         sb.append(LF + "@Override public byte[] serialize(Object key, Object val) throws SerializationException {" + LF);
         sb.append(TAB + "TupleAssembler asm = createAssembler(key, val);" + LF);
 
+        // Key marshal script.
         sb.append(TAB + "{" + LF);
         sb.append(TAB + TAB + "Object obj = key;" + LF);
-        keyMarsh.marshallObject(sb, TAB + TAB);
-        sb.append(TAB + "} {" + LF);
-        sb.append(TAB + TAB + "Object obj = val;" + LF);
-        valMarsh.marshallObject(sb, TAB + TAB);
+        keyMarsh.appendMarshallObjectExpr(sb, TAB + TAB);
         sb.append(TAB + "}" + LF);
 
+        // Value marshal script.
+        sb.append(TAB + " {" + LF);
+        sb.append(TAB + TAB + "Object obj = val;" + LF);
+        valMarsh.appendMarshallObjectExpr(sb, TAB + TAB);
+        sb.append(TAB + "}" + LF);
+
+        // Return statement.
         sb.append(TAB + "return asm.build();" + LF);
         sb.append("}" + LF);
     }
 
-    private void writeDeserializeMethods(StringBuilder sb,
-        ObjectMarshallerExprGenerator keyMarsh,
-        ObjectMarshallerExprGenerator valMarsh
-    ) {
+    /**
+     * Appends {@link Serializer#deserializeKey(byte[])} method code.
+     *
+     * @param sb String buffer to append to.
+     * @param keyMarsh Unmarshall expression generator for key.
+     */
+    private void writeDeserializeKeyMethod(StringBuilder sb, MarshallerExprGenerator keyMarsh) {
+        // Mehtod signature.
         sb.append(LF + "@Override public Object deserializeKey(byte[] data) throws SerializationException {" + LF);
         sb.append(TAB + "Tuple tuple = new ByteBufferTuple(schema, data);" + LF);
 
-        keyMarsh.unmarshallObject(sb, TAB);
+        // Key unmarshal script.
+        keyMarsh.appendUnmarshallObjectExpr(sb, TAB);
 
-        sb.append(TAB + "return obj;" + LF);
-        sb.append("}" + LF);
-
-        sb.append(LF + "@Override public Object deserializeValue(byte[] data) throws SerializationException {" + LF);
-        sb.append(TAB + "Tuple tuple = new ByteBufferTuple(schema, data);" + LF);
-
-        valMarsh.unmarshallObject(sb, TAB);
-
+        // Return statement.
         sb.append(TAB + "return obj;" + LF);
         sb.append("}" + LF);
     }
 
+    /**
+     * Appends {@link Serializer#deserializeValue(byte[])} method code.
+     *
+     * @param sb String buffer to append to.
+     * @param valMarsh Unmarshall expression generator for value.
+     */
+    private void writeDeserializeValueMethod(StringBuilder sb, MarshallerExprGenerator valMarsh) {
+        // Mehtod signature.
+        sb.append(LF + "@Override public Object deserializeValue(byte[] data) throws SerializationException {" + LF);
+        sb.append(TAB + "Tuple tuple = new ByteBufferTuple(schema, data);" + LF);
+
+        // Key unmarshal script.
+        valMarsh.appendUnmarshallObjectExpr(sb, TAB);
+
+        // Return statement.
+        sb.append(TAB + "return obj;" + LF);
+        sb.append("}" + LF);
+    }
+
+    /**
+     * Appends helper methods code.
+     *
+     * @param sb String buffer to append to.
+     * @param schema Schema descriptor.
+     * @param keyMarsh Marshall expression generator for key.
+     * @param valMarsh Marshall expression generator for value.
+     */
     private void generateTupleFactoryMethod(
         StringBuilder sb,
         SchemaDescriptor schema,
-        ObjectMarshallerExprGenerator keyMarsh,
-        ObjectMarshallerExprGenerator valMarsh
+        MarshallerExprGenerator keyMarsh,
+        MarshallerExprGenerator valMarsh
     ) {
+        // Method signature.
         sb.append(LF + "TupleAssembler createAssembler(Object key, Object val) {" + LF);
+        // Local variables.
         sb.append(TAB + "int nonNullVarlenKeys = 0; int nonNullVarlenValues = 0;" + LF);
         sb.append(TAB + "int nonNullVarlenKeysSize = 0; int nonNullVarlenValuesSize = 0;" + LF);
         sb.append(LF);
@@ -335,8 +435,9 @@ public class JaninoSerializerGenerator implements SerializerFactory {
 
         Columns keyCols = schema.keyColumns();
         if (keyCols.firstVarlengthColumn() >= 0) {
+            // Appends key analyzer code-block.
             sb.append(TAB + "{" + LF);
-            sb.append(TAB + TAB + "Object fVal, obj = key;" + LF);
+            sb.append(TAB + TAB + "Object fVal, obj = key;" + LF); // Temporary vars.
 
             for (int i = keyCols.firstVarlengthColumn(); i < keyCols.length(); i++) {
                 assert !keyCols.column(i).type().spec().fixedLength();
@@ -354,8 +455,9 @@ public class JaninoSerializerGenerator implements SerializerFactory {
 
         Columns valCols = schema.valueColumns();
         if (valCols.firstVarlengthColumn() >= 0) {
+            // Appends value analyzer code-block.
             sb.append(TAB + "{" + LF);
-            sb.append(TAB + TAB + "Object fVal, obj = val;" + LF);
+            sb.append(TAB + TAB + "Object fVal, obj = val;" + LF); // Temporary vars.
 
             for (int i = valCols.firstVarlengthColumn(); i < valCols.length(); i++) {
                 assert !valCols.column(i).type().spec().fixedLength();
@@ -370,12 +472,14 @@ public class JaninoSerializerGenerator implements SerializerFactory {
             sb.append(TAB + "}" + LF);
         }
 
+        // Calculate tuple size.
         sb.append(LF);
         sb.append(TAB + "int size = TupleAssembler.tupleSize(" + LF);
         sb.append(TAB + TAB + "keyCols, nonNullVarlenKeys, nonNullVarlenKeysSize, " + LF);
         sb.append(TAB + TAB + "valCols, nonNullVarlenValues, nonNullVarlenValuesSize); " + LF);
         sb.append(LF);
 
+        // Return statement.
         sb.append(TAB + "return new TupleAssembler(schema, size, nonNullVarlenKeys, nonNullVarlenValues);" + LF);
         sb.append("}" + LF);
     }

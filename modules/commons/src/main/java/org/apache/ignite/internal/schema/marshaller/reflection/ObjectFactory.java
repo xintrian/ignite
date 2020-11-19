@@ -15,17 +15,34 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller;
+package org.apache.ignite.internal.schema.marshaller.reflection;
+
+import org.apache.ignite.internal.util.Factory;
+import org.apache.ignite.internal.util.IgniteUnsafeUtils;
 
 /**
- * Factory interface.
- * @param <T> Object type.
+ * Object factory.
  */
-public interface Factory<T> {
+class ObjectFactory<T> implements Factory<T> {
+    /** Class. */
+    private final Class<T> tClass;
+
     /**
-     * Creates object.
+     * Constructor.
      *
-     * @return Object.
+     * @param tClass Class.
      */
-    public T create();
+    ObjectFactory(Class<T> tClass) {
+        this.tClass = tClass;
+    }
+
+    /** {@inheritDoc} */
+    @Override public T create() throws IllegalStateException {
+        try {
+            return (T)IgniteUnsafeUtils.allocateInstance(tClass);
+        }
+        catch (InstantiationException e) {
+            throw new IllegalStateException("Failed to instantiate class: " + tClass.getSimpleName(), e);
+        }
+    }
 }

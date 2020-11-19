@@ -31,6 +31,8 @@ import org.apache.ignite.internal.schema.NativeType;
 import org.apache.ignite.internal.schema.NativeTypeSpec;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.TestUtils;
+import org.apache.ignite.internal.schema.marshaller.generator.JaninoSerializerGenerator;
+import org.apache.ignite.internal.schema.marshaller.reflection.JavaSerializerFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.TestFactory;

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller;
+package org.apache.ignite.internal.schema.marshaller.reflection;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +28,8 @@ import org.apache.ignite.internal.schema.Column;
 import org.apache.ignite.internal.schema.TestUtils;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
+import org.apache.ignite.internal.schema.marshaller.BinaryMode;
+import org.apache.ignite.internal.schema.marshaller.SerializationException;
 import org.apache.ignite.internal.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

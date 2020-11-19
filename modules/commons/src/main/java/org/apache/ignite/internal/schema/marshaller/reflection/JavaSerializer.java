@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller;
+package org.apache.ignite.internal.schema.marshaller.reflection;
 
 import java.util.BitSet;
 import java.util.UUID;
@@ -24,6 +24,9 @@ import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
+import org.apache.ignite.internal.schema.marshaller.BinaryMode;
+import org.apache.ignite.internal.schema.marshaller.SerializationException;
+import org.apache.ignite.internal.schema.marshaller.Serializer;
 
 import static org.apache.ignite.internal.schema.marshaller.MarshallerUtil.getValueSize;
 
@@ -207,13 +210,7 @@ public class JavaSerializer implements Serializer {
         valMarsh = Marshaller.createMarshaller(schema.valueColumns(), schema.keyColumns().length(), valClass);
     }
 
-    /**
-     * Writes key-value pair to tuple.
-     *
-     * @param key Key object.
-     * @param val Value object.
-     * @return Serialized key-value pair.
-     */
+    /** {@inheritDoc} */
     @Override public byte[] serialize(Object key, Object val) throws SerializationException {
         assert keyClass.isInstance(key);
         assert val == null || valClass.isInstance(val);
@@ -276,9 +273,7 @@ public class JavaSerializer implements Serializer {
         return new ObjectStatistic(cnt, size);
     }
 
-    /**
-     * @return Key object.
-     */
+    /** {@inheritDoc} */
     @Override public Object deserializeKey(byte[] data) throws SerializationException {
         final Tuple tuple = new ByteBufferTuple(schema, data);
 
@@ -289,9 +284,7 @@ public class JavaSerializer implements Serializer {
         return o;
     }
 
-    /**
-     * @return Value object.
-     */
+    /** {@inheritDoc} */
     @Override public Object deserializeValue(byte[] data) throws SerializationException {
         final Tuple tuple = new ByteBufferTuple(schema, data);
 

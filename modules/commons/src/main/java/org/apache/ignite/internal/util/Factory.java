@@ -15,12 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller;
+package org.apache.ignite.internal.util;
 
-import org.apache.ignite.internal.schema.SchemaDescriptor;
-
-public class JavaSerializerFactory implements SerializerFactory {
-    @Override public Serializer create(SchemaDescriptor schema, Class<?> keyClass, Class<?> valClass) {
-        return new JavaSerializer(schema, keyClass, valClass);
-    }
+/**
+ * Factory interface.
+ *
+ * @param <T> Object type.
+ */
+public interface Factory<T> {
+    /**
+     * Creates object.
+     *
+     * @return Object.
+     */
+    public T create();
 }

@@ -18,16 +18,36 @@
 package org.apache.ignite.internal.schema.marshaller;
 
 import org.apache.ignite.internal.schema.SchemaDescriptor;
+import org.apache.ignite.internal.schema.marshaller.generator.JaninoSerializerGenerator;
+import org.apache.ignite.internal.schema.marshaller.reflection.JavaSerializerFactory;
 
+/**
+ * (De)Serializer factory interface.
+ */
+@FunctionalInterface
 public interface SerializerFactory {
+    /**
+     * @return Serializer factory back by code generator.
+     */
     public static SerializerFactory createJaninoSerializerFactory() {
         return new JaninoSerializerGenerator();
     }
 
+    /**
+     * @return Reflection-based serializer factory.
+     */
     public static SerializerFactory createJavaSerializerFactory() {
         return new JavaSerializerFactory();
 
     }
 
+    /**
+     * Creates serializer.
+     *
+     * @param schema Schema descriptor.
+     * @param keyClass Key class.
+     * @param valClass Value class.
+     * @return Serializer.
+     */
     public Serializer create(SchemaDescriptor schema, Class<?> keyClass, Class<?> valClass);
 }

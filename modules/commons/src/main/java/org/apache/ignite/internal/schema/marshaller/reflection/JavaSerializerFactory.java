@@ -15,33 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller;
+package org.apache.ignite.internal.schema.marshaller.reflection;
 
-import org.apache.ignite.internal.util.IgniteUnsafeUtils;
+import org.apache.ignite.internal.schema.SchemaDescriptor;
+import org.apache.ignite.internal.schema.marshaller.Serializer;
+import org.apache.ignite.internal.schema.marshaller.SerializerFactory;
 
 /**
- * Object factory.
+ * Factory for reflection-based serializer.
  */
-class ObjectFactory<T> implements Factory<T> {
-    /** Class. */
-    private final Class<T> tClass;
-
-    /**
-     * Constructor.
-     *
-     * @param tClass Class.
-     */
-    ObjectFactory(Class<T> tClass) {
-        this.tClass = tClass;
-    }
-
+public class JavaSerializerFactory implements SerializerFactory {
     /** {@inheritDoc} */
-    @Override public T create() throws IllegalStateException {
-        try {
-            return (T)IgniteUnsafeUtils.allocateInstance(tClass);
-        }
-        catch (InstantiationException e) {
-            throw new IllegalStateException("Failed to instantiate class: " + tClass.getSimpleName(), e);
-        }
+    @Override public Serializer create(SchemaDescriptor schema, Class<?> keyClass, Class<?> valClass) {
+        return new JavaSerializer(schema, keyClass, valClass);
     }
 }

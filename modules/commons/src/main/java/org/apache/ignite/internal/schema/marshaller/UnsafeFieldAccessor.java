@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
  * Field accessor to speedup access.
  */
 // TODO: Extract interface, move to java-8 profile and add Java9+ implementation using VarHandles.
-public abstract class FieldAccessor {
+public abstract class UnsafeFieldAccessor {
     /**
      * TODO: implement sesitive information filtering.
      *
@@ -64,14 +64,14 @@ public abstract class FieldAccessor {
      * @param colIdx Column index in schema.
      * @return Accessor.
      */
-    static FieldAccessor create(Class<?> type, Column col, int colIdx) {
+    static UnsafeFieldAccessor create(Class<?> type, Column col, int colIdx) {
         try {
             final Field field = type.getDeclaredField(col.name());
 
             if (field.getType().isPrimitive() && col.nullable())
                 throw new IllegalArgumentException("Failed to map non-nullable field to nullable column [name=" + field.getName() + ']');
 
-            BinaryMode mode = JavaSerializer.mode(field.getType());
+            BinaryMode mode = MarshallerUtil.mode(field.getType());
 
             switch (mode) {
                 case P_BYTE:
@@ -123,7 +123,7 @@ public abstract class FieldAccessor {
      * @param mode Binary mode.
      * @return Accessor.
      */
-    static FieldAccessor createIdentityAccessor(Column col, int colIdx, BinaryMode mode) {
+    static UnsafeFieldAccessor createIdentityAccessor(Column col, int colIdx, BinaryMode mode) {
         switch (mode) {
             //  Marshaller read/write object contract methods allowed boxed types only.
             case P_BYTE:
@@ -160,7 +160,7 @@ public abstract class FieldAccessor {
      * @param colIdx Column index.
      * @param mode Binary mode;
      */
-    protected FieldAccessor(Field field, int colIdx, BinaryMode mode) {
+    protected UnsafeFieldAccessor(Field field, int colIdx, BinaryMode mode) {
         assert field != null;
         assert colIdx >= 0;
         assert mode != null;
@@ -169,8 +169,6 @@ public abstract class FieldAccessor {
         this.mode = mode;
         offset = IgniteUnsafeUtils.objectFieldOffset(field);
         name = field.getName();
-
-        field.setAccessible(true);
     }
 
     /**
@@ -179,7 +177,7 @@ public abstract class FieldAccessor {
      * @param colIdx Column index.
      * @param mode Binary mode;
      */
-    private FieldAccessor(int colIdx, BinaryMode mode) {
+    private UnsafeFieldAccessor(int colIdx, BinaryMode mode) {
         assert colIdx >= 0;
         assert mode != null;
 
@@ -211,7 +209,7 @@ public abstract class FieldAccessor {
         }
         catch (Exception ex) {
             if (includeSensitive() && name != null)
-                throw new SerializationException("Failed to write field [name=" + name + ']', ex);
+                throw new SerializationException("Failed to read field [id=" + colIdx + ']', ex);
             else
                 throw new SerializationException("Failed to write field [id=" + colIdx + ']', ex);
         }
@@ -277,7 +275,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code byte} type.
      */
-    private static class IdentityAccessor extends FieldAccessor {
+    private static class IdentityAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -312,7 +310,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code byte} type.
      */
-    private static class BytePrimitiveAccessor extends FieldAccessor {
+    private static class BytePrimitiveAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -341,7 +339,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code short} type.
      */
-    private static class ShortPrimitiveAccessor extends FieldAccessor {
+    private static class ShortPrimitiveAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -370,7 +368,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code int} type.
      */
-    private static class IntPrimitiveAccessor extends FieldAccessor {
+    private static class IntPrimitiveAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -399,7 +397,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code long} type.
      */
-    private static class LongPrimitiveAccessor extends FieldAccessor {
+    private static class LongPrimitiveAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -428,7 +426,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code float} type.
      */
-    private static class FloatPrimitiveAccessor extends FieldAccessor {
+    private static class FloatPrimitiveAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -457,7 +455,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of primitive {@code double} type.
      */
-    private static class DoublePrimitiveAccessor extends FieldAccessor {
+    private static class DoublePrimitiveAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *
@@ -486,7 +484,7 @@ public abstract class FieldAccessor {
     /**
      * Accessor for field of reference type.
      */
-    private static class ReferenceFieldAccessor extends FieldAccessor {
+    private static class ReferenceFieldAccessor extends UnsafeFieldAccessor {
         /**
          * Constructor.
          *

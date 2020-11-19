@@ -17,27 +17,10 @@
 
 package org.apache.ignite.internal.schema.marshaller;
 
-/**
- * Serialization exception.
- */
-public class SerializationException extends Exception {
-    /**
-     * Constructor.
-     *
-     * @param cause Cause.
-     */
-    public SerializationException(Throwable cause) {
-        // Used by serializers generated with Janino.
-        super(cause);
-    }
+import org.apache.ignite.internal.schema.SchemaDescriptor;
 
-    /**
-     * Constructor.
-     *
-     * @param message Message.
-     * @param cause Cause.
-     */
-    public SerializationException(String message, Throwable cause) {
-        super(message, cause);
+public class JavaSerializerFactory implements SerializerFactory {
+    @Override public Serializer create(SchemaDescriptor schema, Class<?> keyClass, Class<?> valClass) {
+        return new JavaSerializer(schema, keyClass, valClass);
     }
 }

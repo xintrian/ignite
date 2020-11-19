@@ -18,26 +18,25 @@
 package org.apache.ignite.internal.schema.marshaller;
 
 /**
- * Serialization exception.
+ * Key-value objects (de)serializer.
  */
-public class SerializationException extends Exception {
+public interface Serializer {
     /**
-     * Constructor.
+     * Writes key-value pair to tuple.
      *
-     * @param cause Cause.
+     * @param key Key object.
+     * @param val Value object.
+     * @return Serialized key-value pair.
      */
-    public SerializationException(Throwable cause) {
-        // Used by serializers generated with Janino.
-        super(cause);
-    }
+    byte[] serialize(Object key, Object val) throws SerializationException;
 
     /**
-     * Constructor.
-     *
-     * @param message Message.
-     * @param cause Cause.
+     * @return Key object.
      */
-    public SerializationException(String message, Throwable cause) {
-        super(message, cause);
-    }
+    Object deserializeKey(byte[] data) throws SerializationException;
+
+    /**
+     * @return Value object.
+     */
+    Object deserializeValue(byte[] data) throws SerializationException;
 }

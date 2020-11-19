@@ -21,66 +21,16 @@ import java.util.BitSet;
 import java.util.UUID;
 import org.apache.ignite.internal.schema.ByteBufferTuple;
 import org.apache.ignite.internal.schema.Columns;
-import org.apache.ignite.internal.schema.NativeType;
 import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
 
+import static org.apache.ignite.internal.schema.marshaller.MarshallerUtil.getValueSize;
+
 /**
- * Cache objects (de)serializer.
- * <p>
- * TODO: Extract interface.
+ * Reflection based (de)serializer.
  */
-public class JavaSerializer {
-    /**
-     * Gets binary read/write mode for given class.
-     *
-     * @param cls Type.
-     * @return Binary mode.
-     */
-    public static BinaryMode mode(Class<?> cls) {
-        assert cls != null;
-
-        // Primitives.
-        if (cls == byte.class)
-            return BinaryMode.P_BYTE;
-        else if (cls == short.class)
-            return BinaryMode.P_SHORT;
-        else if (cls == int.class)
-            return BinaryMode.P_INT;
-        else if (cls == long.class)
-            return BinaryMode.P_LONG;
-        else if (cls == float.class)
-            return BinaryMode.P_FLOAT;
-        else if (cls == double.class)
-            return BinaryMode.P_DOUBLE;
-
-            // Boxed primitives.
-        else if (cls == Byte.class)
-            return BinaryMode.BYTE;
-        else if (cls == Short.class)
-            return BinaryMode.SHORT;
-        else if (cls == Integer.class)
-            return BinaryMode.INT;
-        else if (cls == Long.class)
-            return BinaryMode.LONG;
-        else if (cls == Float.class)
-            return BinaryMode.FLOAT;
-        else if (cls == Double.class)
-            return BinaryMode.DOUBLE;
-
-            // Other types
-        else if (cls == byte[].class)
-            return BinaryMode.BYTE_ARR;
-        else if (cls == String.class)
-            return BinaryMode.STRING;
-        else if (cls == UUID.class)
-            return BinaryMode.UUID;
-        else if (cls == BitSet.class)
-            return BinaryMode.BITSET;
-
-        return null;
-    }
+public class JavaSerializer implements Serializer {
 
     /**
      * Reads value object from tuple.
@@ -253,8 +203,8 @@ public class JavaSerializer {
         this.keyClass = keyClass;
         this.valClass = valClass;
 
-        keyMarsh = MarshallerFactory.createMarshaller(schema.keyColumns(), 0, keyClass);
-        valMarsh = MarshallerFactory.createMarshaller(schema.valueColumns(), schema.keyColumns().length(), valClass);
+        keyMarsh = Marshaller.createMarshaller(schema.keyColumns(), 0, keyClass);
+        valMarsh = Marshaller.createMarshaller(schema.valueColumns(), schema.keyColumns().length(), valClass);
     }
 
     /**
@@ -264,7 +214,7 @@ public class JavaSerializer {
      * @param val Value object.
      * @return Serialized key-value pair.
      */
-    public byte[] serialize(Object key, Object val) throws SerializationException {
+    @Override public byte[] serialize(Object key, Object val) throws SerializationException {
         assert keyClass.isInstance(key);
         assert val == null || valClass.isInstance(val);
 
@@ -286,9 +236,8 @@ public class JavaSerializer {
      * @param key Key object.
      * @param val Value object.
      * @return Tuple assembler.
-     * @throws SerializationException If failed.
      */
-    private TupleAssembler createAssembler(Object key, Object val) throws SerializationException {
+    private TupleAssembler createAssembler(Object key, Object val) {
         ObjectStatistic keyStat = collectObjectStats(schema.keyColumns(), keyMarsh, key);
         ObjectStatistic valStat = collectObjectStats(schema.valueColumns(), valMarsh, val);
 
@@ -328,29 +277,9 @@ public class JavaSerializer {
     }
 
     /**
-     * Calculates size for serialized value of varlen type.
-     *
-     * @param val Field value.
-     * @param type Mapped type.
-     * @return Serialized value size.
-     */
-    private int getValueSize(Object val, NativeType type) {
-        switch (type.spec()) {
-            case BYTES:
-                return ((byte[])val).length;
-
-            case STRING:
-                return TupleAssembler.utf8EncodedLength((CharSequence)val);
-
-            default:
-                throw new IllegalStateException("Unsupported test varsize type: " + type);
-        }
-    }
-
-    /**
      * @return Key object.
      */
-    public Object deserializeKey(byte[] data) throws SerializationException {
+    @Override public Object deserializeKey(byte[] data) throws SerializationException {
         final Tuple tuple = new ByteBufferTuple(schema, data);
 
         final Object o = keyMarsh.readObject(tuple);
@@ -363,7 +292,7 @@ public class JavaSerializer {
     /**
      * @return Value object.
      */
-    public Object deserializeValue(byte[] data) throws SerializationException {
+    @Override public Object deserializeValue(byte[] data) throws SerializationException {
         final Tuple tuple = new ByteBufferTuple(schema, data);
 
         // TODO: add tomstone support.

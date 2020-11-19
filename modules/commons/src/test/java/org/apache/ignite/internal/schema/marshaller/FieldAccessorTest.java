@@ -101,7 +101,7 @@ public class FieldAccessorTest {
         final TestObject obj = TestObject.randomObject(rnd);
 
         for (int i = 0; i < cols.length; i++) {
-            FieldAccessor accessor = FieldAccessor.create(TestObject.class, cols[i], i);
+            UnsafeFieldAccessor accessor = UnsafeFieldAccessor.create(TestObject.class, cols[i], i);
 
             accessor.write(obj, tupleAssembler);
         }
@@ -109,7 +109,7 @@ public class FieldAccessorTest {
         final TestObject restoredObj = new TestObject();
 
         for (int i = 0; i < cols.length; i++) {
-            FieldAccessor accessor = FieldAccessor.create(TestObject.class, cols[i], i);
+            UnsafeFieldAccessor accessor = UnsafeFieldAccessor.create(TestObject.class, cols[i], i);
 
             accessor.read(restoredObj, tuple);
         }
@@ -139,7 +139,7 @@ public class FieldAccessorTest {
      */
     @Test
     public void testIdentityAccessor() throws Exception {
-        final FieldAccessor accessor = FieldAccessor.createIdentityAccessor(
+        final UnsafeFieldAccessor accessor = UnsafeFieldAccessor.createIdentityAccessor(
             new Column("col0", STRING, true),
             0,
             BinaryMode.STRING);
@@ -157,7 +157,7 @@ public class FieldAccessorTest {
      */
     @Test
     public void testWrongIdentityAccessor() throws Exception {
-        final FieldAccessor accessor = FieldAccessor.createIdentityAccessor(
+        final UnsafeFieldAccessor accessor = UnsafeFieldAccessor.createIdentityAccessor(
             new Column("col0", STRING, true),
             42,
             BinaryMode.UUID);

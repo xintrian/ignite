@@ -35,6 +35,8 @@
 package org.apache.ignite.internal.schema.marshaller;
 
 import java.util.Objects;
+import org.apache.ignite.internal.schema.Column;
+import org.apache.ignite.internal.schema.Columns;
 import org.apache.ignite.internal.schema.Tuple;
 import org.apache.ignite.internal.schema.TupleAssembler;
 import org.jetbrains.annotations.Nullable;
@@ -44,10 +46,44 @@ import org.jetbrains.annotations.Nullable;
  */
 public class Marshaller {
     /**
+     * Creates marshaller for class.
+     *
+     * @param cols Columns.
+     * @param firstColId First column position in schema.
+     * @param aClass Type.
+     * @return Marshaller.
+     */
+    public static Marshaller createMarshaller(Columns cols, int firstColId, Class<? extends Object> aClass) {
+        final BinaryMode mode = MarshallerUtil.mode(aClass);
+
+        if (mode != null) {
+            final Column col = cols.column(0);
+
+            assert cols.length() == 1;
+            assert mode.typeSpec() == col.type().spec() : "Target type is not compatible.";
+            assert !aClass.isPrimitive() : "Non-nullable types are not allowed.";
+
+            return new Marshaller(UnsafeFieldAccessor.createIdentityAccessor(col, firstColId, mode));
+        }
+
+        UnsafeFieldAccessor[] fieldAccessors = new UnsafeFieldAccessor[cols.length()];
+
+        // Build accessors
+        for (int i = 0; i < cols.length(); i++) {
+            final Column col = cols.column(i);
+
+            final int colIdx = firstColId + i; /* Absolute column idx in schema. */
+            fieldAccessors[i] = UnsafeFieldAccessor.create(aClass, col, colIdx);
+        }
+
+        return new Marshaller(new ObjectFactory<>(aClass), fieldAccessors);
+    }
+
+    /**
      * Field accessors for mapped columns.
      * Array has same size and order as columns.
      */
-    private final FieldAccessor[] fieldAccessors;
+    private final UnsafeFieldAccessor[] fieldAccessors;
 
     /**
      * Object factory for complex types or {@code null} for basic type.
@@ -62,7 +98,7 @@ public class Marshaller {
      * @param fieldAccessors Object field accessors for mapped columns.
      */
     @SuppressWarnings("AssignmentOrReturnOfFieldWithMutableType")
-    public Marshaller(Factory<?> factory, FieldAccessor[] fieldAccessors) {
+    public Marshaller(Factory<?> factory, UnsafeFieldAccessor[] fieldAccessors) {
         this.fieldAccessors = fieldAccessors;
         this.factory = Objects.requireNonNull(factory);
     }
@@ -73,8 +109,8 @@ public class Marshaller {
      *
      * @param fieldAccessor Identity field accessor for object of basic type.
      */
-    public Marshaller(FieldAccessor fieldAccessor) {
-        fieldAccessors = new FieldAccessor[] {fieldAccessor};
+    public Marshaller(UnsafeFieldAccessor fieldAccessor) {
+        fieldAccessors = new UnsafeFieldAccessor[] {fieldAccessor};
         factory = null;
     }
 

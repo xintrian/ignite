@@ -26,6 +26,7 @@ import org.apache.ignite.internal.schema.marshaller.BinaryMode;
 import org.apache.ignite.internal.schema.marshaller.MarshallerUtil;
 import org.apache.ignite.internal.schema.marshaller.SerializationException;
 import org.apache.ignite.internal.util.Factory;
+import org.apache.ignite.internal.util.ObjectFactory;
 import org.jetbrains.annotations.Nullable;
 
 /**

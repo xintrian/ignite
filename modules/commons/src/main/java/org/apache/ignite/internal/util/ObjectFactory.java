@@ -15,15 +15,12 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.schema.marshaller.reflection;
-
-import org.apache.ignite.internal.util.Factory;
-import org.apache.ignite.internal.util.IgniteUnsafeUtils;
+package org.apache.ignite.internal.util;
 
 /**
  * Object factory.
  */
-class ObjectFactory<T> implements Factory<T> {
+public class ObjectFactory<T> implements Factory<T> {
     /** Class. */
     private final Class<T> tClass;
 
@@ -32,7 +29,7 @@ class ObjectFactory<T> implements Factory<T> {
      *
      * @param tClass Class.
      */
-    ObjectFactory(Class<T> tClass) {
+    public ObjectFactory(Class<T> tClass) {
         this.tClass = tClass;
     }
 

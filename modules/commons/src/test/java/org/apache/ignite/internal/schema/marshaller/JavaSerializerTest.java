@@ -59,7 +59,9 @@ import static org.junit.jupiter.api.DynamicTest.dynamicTest;
  * Serializer test.
  */
 public class JavaSerializerTest {
-
+    /**
+     * @return List of serializers for test.
+     */
     private static List<SerializerFactory> serializerFactoryProvider() {
         return Arrays.asList(
             new JaninoSerializerGenerator(),

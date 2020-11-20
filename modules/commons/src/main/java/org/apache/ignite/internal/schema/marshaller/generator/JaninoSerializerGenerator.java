@@ -64,7 +64,7 @@ public class JaninoSerializerGenerator implements SerializerFactory {
                 ce.setDebuggingInformation(true, true, true);
 
                 //TODO: dump code to log.
-                System.out.println(code);
+//                System.out.println(code);
             }
 
             try {  // Compile and load class.

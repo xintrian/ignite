@@ -30,6 +30,17 @@ class FieldAccessExprGenerator {
     private static final String WRITE_NULL_EXPR = "asm.appendNull();";
 
     /**
+     * Created object access expressions generator.
+     *
+     * @param mode Field access binary mode.
+     * @param colIdx Column absolute index in schema.
+     * @return Object field access expressions generator.
+     */
+    static FieldAccessExprGenerator createIdentityAccessor(BinaryMode mode, int colIdx) {
+        return createAccessor(mode, colIdx, -1L);
+    }
+
+    /**
      * Created object field access expressions generator.
      *
      * @param mode Field access binary mode.

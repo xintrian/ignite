@@ -172,7 +172,7 @@ public class JaninoSerializerGenerator implements SerializerFactory {
         BinaryMode mode = MarshallerUtil.mode(aClass);
 
         if (mode != null)
-            return new IdentityObjectMarshallerExprGenerator(FieldAccessExprGenerator.createAccessor(mode, firstColIdx, -1L));
+            return new IdentityObjectMarshallerExprGenerator(FieldAccessExprGenerator.createIdentityAccessor(mode, firstColIdx));
 
         FieldAccessExprGenerator[] accessors = new FieldAccessExprGenerator[columns.length()];
         try {

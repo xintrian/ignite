@@ -17,7 +17,9 @@
 
 package org.apache.ignite.internal.benchmarks;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.internal.schema.Column;
@@ -26,7 +28,6 @@ import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.marshaller.Serializer;
 import org.apache.ignite.internal.schema.marshaller.SerializerFactory;
 import org.apache.ignite.internal.util.Factory;
-import org.apache.ignite.internal.util.ObjectFactory;
 import org.codehaus.commons.compiler.CompilerFactoryFactory;
 import org.codehaus.commons.compiler.IClassBodyEvaluator;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -54,7 +55,7 @@ import static org.apache.ignite.internal.schema.NativeType.LONG;
 @State(Scope.Benchmark)
 @Warmup(time = 10, iterations = 3, timeUnit = TimeUnit.SECONDS)
 @Measurement(time = 10, iterations = 5, timeUnit = TimeUnit.SECONDS)
-@BenchmarkMode({Mode.Throughput, Mode.AverageTime, Mode.SingleShotTime})
+@BenchmarkMode({Mode.Throughput, Mode.AverageTime})
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @Fork(1)
 public class SerializerBenchmarkTest {
@@ -96,7 +97,18 @@ public class SerializerBenchmarkTest {
         rnd = new Random(seed);
 
         final Class<?> valClass = createGeneratedObjectClass(fieldsCount, Long.TYPE);
-        objectFactory = new ObjectFactory<>(valClass);
+//        objectFactory = new ObjectFactory<>(valClass);
+        final Constructor<?> constr = valClass.getDeclaredConstructor();
+        objectFactory = new Factory<Object>() {
+            @Override public Object create() {
+                try {
+                    return constr.newInstance();
+                }
+                catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                    throw new IllegalStateException("Failed to instantiate class: " + valClass.getSimpleName(), e);
+                }
+            }
+        };
 
         Columns keyCols = new Columns(new Column("key", LONG, true));
         Columns valCols = mapFieldsToColumns(valClass);
@@ -121,9 +133,8 @@ public class SerializerBenchmarkTest {
         Object val = objectFactory.create();
         byte[] bytes = serializer.serialize(key, val);
 
-        // Try different order.
-        Object restoredVal = serializer.deserializeValue(bytes);
         Object restoredKey = serializer.deserializeKey(bytes);
+        Object restoredVal = serializer.deserializeValue(bytes);
 
         bh.consume(restoredVal);
         bh.consume(restoredKey);

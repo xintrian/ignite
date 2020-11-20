@@ -38,7 +38,6 @@ public interface SerializerFactory {
      */
     public static SerializerFactory createJavaSerializerFactory() {
         return new JavaSerializerFactory();
-
     }
 
     /**

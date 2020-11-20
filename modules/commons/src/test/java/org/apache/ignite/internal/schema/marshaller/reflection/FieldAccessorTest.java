@@ -82,17 +82,17 @@ public class FieldAccessorTest {
             new Column("pFloatCol", FLOAT, false),
             new Column("pDoubleCol", DOUBLE, false),
 
-            new Column("byteCol", BYTE, true),
-            new Column("shortCol", SHORT, true),
-            new Column("intCol", INTEGER, true),
-            new Column("longCol", LONG, true),
-            new Column("floatCol", FLOAT, true),
-            new Column("doubleCol", DOUBLE, true),
+            new Column("byteCol", BYTE, false),
+            new Column("shortCol", SHORT, false),
+            new Column("intCol", INTEGER, false),
+            new Column("longCol", LONG, false),
+            new Column("floatCol", FLOAT, false),
+            new Column("doubleCol", DOUBLE, false),
 
-            new Column("uuidCol", UUID, true),
-            new Column("bitmaskCol", Bitmask.of(9), true),
-            new Column("stringCol", STRING, true),
-            new Column("bytesCol", BYTES, true),
+            new Column("uuidCol", UUID, false),
+            new Column("bitmaskCol", Bitmask.of(9), false),
+            new Column("stringCol", STRING, false),
+            new Column("bytesCol", BYTES, false),
         };
 
         final Pair<TupleAssembler, Tuple> mocks = createMocks();
@@ -132,6 +132,49 @@ public class FieldAccessorTest {
 
         assertEquals(obj.uuidCol, restoredObj.uuidCol);
         assertEquals(obj.bitmaskCol, restoredObj.bitmaskCol);
+        assertEquals(obj.stringCol, restoredObj.stringCol);
+        assertArrayEquals(obj.bytesCol, restoredObj.bytesCol);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testNullableFieldsAccessor() throws Exception {
+        Column[] cols = new Column[] {
+            new Column("intCol", INTEGER, true),
+            new Column("longCol", LONG, true),
+
+            new Column("stringCol", STRING, true),
+            new Column("bytesCol", BYTES, true),
+        };
+
+        final Pair<TupleAssembler, Tuple> mocks = createMocks();
+
+        final TupleAssembler tupleAssembler = mocks.getFirst();
+        final Tuple tuple = mocks.getSecond();
+
+        final TestSimpleObject obj = new TestSimpleObject();
+        obj.longCol = rnd.nextLong();
+        obj.stringCol = TestUtils.randomString(rnd, 255);
+
+        for (int i = 0; i < cols.length; i++) {
+            UnsafeFieldAccessor accessor = UnsafeFieldAccessor.create(TestSimpleObject.class, cols[i], i);
+
+            accessor.write(obj, tupleAssembler);
+        }
+
+        final TestSimpleObject restoredObj = new TestSimpleObject();
+
+        for (int i = 0; i < cols.length; i++) {
+            UnsafeFieldAccessor accessor = UnsafeFieldAccessor.create(TestSimpleObject.class, cols[i], i);
+
+            accessor.read(restoredObj, tuple);
+        }
+
+        assertEquals(obj.intCol, restoredObj.intCol);
+        assertEquals(obj.longCol, restoredObj.longCol);
+
         assertEquals(obj.stringCol, restoredObj.stringCol);
         assertArrayEquals(obj.bytesCol, restoredObj.bytesCol);
     }
@@ -188,7 +231,10 @@ public class FieldAccessorTest {
 
         final Answer<Void> asmAnswer = new Answer<Void>() {
             @Override public Void answer(InvocationOnMock invocation) {
-                vals.add(invocation.getArguments()[0]);
+                if ("appendNull".equals(invocation.getMethod().getName()))
+                    vals.add(null);
+                else
+                    vals.add(invocation.getArguments()[0]);
 
                 return null;
             }
@@ -317,6 +363,34 @@ public class FieldAccessorTest {
         /** {@inheritDoc} */
         @Override public int hashCode() {
             return 73;
+        }
+    }
+
+    /**
+     * Test object.
+     */
+    private static class TestSimpleObject {
+        Long longCol;
+        Integer intCol;
+        byte[] bytesCol;
+        String stringCol;
+
+        /** {@inheritDoc} */
+        @Override public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            TestSimpleObject object = (TestSimpleObject)o;
+            return Objects.equals(longCol, object.longCol) &&
+                Objects.equals(intCol, object.intCol) &&
+                Arrays.equals(bytesCol, object.bytesCol) &&
+                Objects.equals(stringCol, object.stringCol);
+        }
+
+        /** {@inheritDoc} */
+        @Override public int hashCode() {
+            return 42;
         }
     }
 }

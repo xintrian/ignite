@@ -90,7 +90,8 @@ public class JavaSerializerTest {
         NativeType[] types = new NativeType[] {BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, UUID, STRING, BYTES, Bitmask.of(5)};
 
         return serializerFactoryProvider().stream().map(factory ->
-            dynamicContainer(factory.getClass().getSimpleName(),
+            dynamicContainer(
+                factory.getClass().getSimpleName(),
                 Stream.concat(
                     // Test pure types.
                     Stream.of(types).map(type ->
@@ -107,34 +108,6 @@ public class JavaSerializerTest {
                     )
                 )
             ));
-    }
-
-    /**
-     *
-     */
-    @ParameterizedTest
-    @MethodSource("serializerFactoryProvider")
-    public void testBasicTypes(SerializerFactory factory) throws SerializationException {
-        // Fixed types:
-        checkBasicType(factory, BYTE, BYTE);
-        checkBasicType(factory, SHORT, SHORT);
-        checkBasicType(factory, INTEGER, INTEGER);
-        checkBasicType(factory, LONG, LONG);
-        checkBasicType(factory, FLOAT, FLOAT);
-        checkBasicType(factory, DOUBLE, DOUBLE);
-        checkBasicType(factory, UUID, UUID);
-        checkBasicType(factory, Bitmask.of(4), Bitmask.of(5));
-
-        // Varlen types:
-        checkBasicType(factory, BYTES, BYTES);
-        checkBasicType(factory, STRING, STRING);
-
-        // Mixed:
-        checkBasicType(factory, LONG, INTEGER);
-        checkBasicType(factory, FLOAT, DOUBLE);
-        checkBasicType(factory, INTEGER, BYTES);
-        checkBasicType(factory, STRING, LONG);
-        checkBasicType(factory, Bitmask.of(9), BYTES);
     }
 
     /**
@@ -155,12 +128,14 @@ public class JavaSerializerTest {
             new Column("shortCol", SHORT, true),
             new Column("intCol", INTEGER, true),
             new Column("longCol", LONG, true),
+            new Column("nullLongCol", LONG, true),
             new Column("floatCol", FLOAT, true),
             new Column("doubleCol", DOUBLE, true),
 
             new Column("uuidCol", UUID, true),
             new Column("bitmaskCol", Bitmask.of(42), true),
             new Column("stringCol", STRING, true),
+            new Column("nullBytesCol", BYTES, true),
             new Column("bytesCol", BYTES, true),
         };
 
@@ -393,6 +368,7 @@ public class JavaSerializerTest {
         private Short shortCol;
         private Integer intCol;
         private Long longCol;
+        private Long nullLongCol;
         private Float floatCol;
         private Double doubleCol;
 
@@ -400,6 +376,7 @@ public class JavaSerializerTest {
         private BitSet bitmaskCol;
         private String stringCol;
         private byte[] bytesCol;
+        private byte[] nullBytesCol;
 
         /** {@inheritDoc} */
         @Override public boolean equals(Object o) {
@@ -421,12 +398,14 @@ public class JavaSerializerTest {
                 Objects.equals(shortCol, object.shortCol) &&
                 Objects.equals(intCol, object.intCol) &&
                 Objects.equals(longCol, object.longCol) &&
+                Objects.equals(nullLongCol, object.nullLongCol) &&
                 Objects.equals(floatCol, object.floatCol) &&
                 Objects.equals(doubleCol, object.doubleCol) &&
                 Objects.equals(uuidCol, object.uuidCol) &&
                 Objects.equals(bitmaskCol, object.bitmaskCol) &&
                 Objects.equals(stringCol, object.stringCol) &&
-                Arrays.equals(bytesCol, object.bytesCol);
+                Arrays.equals(bytesCol, object.bytesCol) &&
+                Arrays.equals(nullBytesCol, object.nullBytesCol);
         }
 
         /** {@inheritDoc} */

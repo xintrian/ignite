@@ -44,7 +44,7 @@ public class JaninoSerializerGenerator implements SerializerFactory {
     public static final int INITIAL_BUFFER_SIZE = 8 * 1024;
 
     /** Debug flag. */
-    private static final boolean enabledDebug = false;
+    private static final boolean enabledDebug = true;
 
     /** {@inheritDoc} */
     @Override public Serializer create(
@@ -60,8 +60,12 @@ public class JaninoSerializerGenerator implements SerializerFactory {
 
             //TODO: pass code to logger on trace level.
 
-            if (enabledDebug)
+            if (enabledDebug) {
                 ce.setDebuggingInformation(true, true, true);
+
+                //TODO: dump code to log.
+                System.out.println(code);
+            }
 
             try {  // Compile and load class.
                 ce.setParentClassLoader(getClass().getClassLoader());
@@ -168,14 +172,14 @@ public class JaninoSerializerGenerator implements SerializerFactory {
         BinaryMode mode = MarshallerUtil.mode(aClass);
 
         if (mode != null)
-            return new IdentityObjectMarshallerExprGenerator(createAccessor(mode, firstColIdx, -1L));
+            return new IdentityObjectMarshallerExprGenerator(FieldAccessExprGenerator.createAccessor(mode, firstColIdx, -1L));
 
         FieldAccessExprGenerator[] accessors = new FieldAccessExprGenerator[columns.length()];
         try {
             for (int i = 0; i < columns.length(); i++) {
                 final Field field = aClass.getDeclaredField(columns.column(i).name());
 
-                accessors[i] = createAccessor(
+                accessors[i] = FieldAccessExprGenerator.createAccessor(
                     MarshallerUtil.mode(field.getType()),
                     firstColIdx + i /* schma absolute index. */,
                     IgniteUnsafeUtils.objectFieldOffset(field));
@@ -186,156 +190,6 @@ public class JaninoSerializerGenerator implements SerializerFactory {
         }
 
         return new MarshallerExprGenerator(classExpr, accessors);
-    }
-
-    /**
-     * Created object field access expressions generator.
-     *
-     * @param mode Field access binary mode.
-     * @param colIdx Column absolute index in schema.
-     * @param offset Object field offset.
-     * @return Object field access expressions generator.
-     */
-    private FieldAccessExprGenerator createAccessor(BinaryMode mode, int colIdx, long offset) {
-        switch (mode) {
-            case BYTE:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "Byte",
-                    "tuple.byteValueBoxed",
-                    "asm.appendByte",
-                    offset);
-
-            case P_BYTE:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "tuple.byteValue",
-                    "asm.appendByte",
-                    offset,
-                    "IgniteUnsafeUtils.getByteField",
-                    "IgniteUnsafeUtils.putByteField"
-                );
-
-            case SHORT:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "Short",
-                    "tuple.shortValueBoxed",
-                    "asm.appendShort",
-                    offset);
-
-            case P_SHORT:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "tuple.shortValue",
-                    "asm.appendShort",
-                    offset,
-                    "IgniteUnsafeUtils.getShortField",
-                    "IgniteUnsafeUtils.putShortField"
-                );
-
-            case INT:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "Integer",
-                    "tuple.intValueBoxed",
-                    "asm.appendInt",
-                    offset);
-
-            case P_INT:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "tuple.intValue",
-                    "asm.appendInt",
-                    offset,
-                    "IgniteUnsafeUtils.getIntField",
-                    "IgniteUnsafeUtils.putIntField"
-                );
-
-            case LONG:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "Long",
-                    "tuple.longValueBoxed",
-                    "asm.appendLong",
-                    offset);
-
-            case P_LONG:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "tuple.longValue",
-                    "asm.appendLong",
-                    offset,
-                    "IgniteUnsafeUtils.getLongField",
-                    "IgniteUnsafeUtils.putLongField"
-                );
-
-            case FLOAT:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "Float",
-                    "tuple.floatValueBoxed",
-                    "asm.appendFloat",
-                    offset);
-
-            case P_FLOAT:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "tuple.floatValue",
-                    "asm.appendFloat",
-                    offset,
-                    "IgniteUnsafeUtils.getFloatField",
-                    "IgniteUnsafeUtils.putFloatField"
-                );
-
-            case DOUBLE:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "Double",
-                    "tuple.doubleValueBoxed",
-                    "asm.appendDouble",
-                    offset);
-
-            case P_DOUBLE:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "tuple.doubleValue",
-                    "asm.appendDouble",
-                    offset,
-                    "IgniteUnsafeUtils.getDoubleField",
-                    "IgniteUnsafeUtils.putDoubleField"
-                );
-
-            case UUID:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "UUID",
-                    "tuple.uuidValue", "asm.appendUuid",
-                    offset);
-
-            case BITSET:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "BitSet",
-                    "tuple.bitmaskValue", "asm.appendBitmask",
-                    offset);
-
-            case STRING:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "String",
-                    "tuple.stringValue", "asm.appendString",
-                    offset);
-
-            case BYTE_ARR:
-                return new FieldAccessExprGenerator(
-                    colIdx,
-                    "byte[]",
-                    "tuple.bytesValue", "asm.appendBytes",
-                    offset);
-            default:
-                throw new IllegalStateException("Unsupportd binary mode");
-        }
     }
 
     /**

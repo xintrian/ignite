@@ -17,12 +17,168 @@
 
 package org.apache.ignite.internal.schema.marshaller.generator;
 
+import org.apache.ignite.internal.schema.marshaller.BinaryMode;
 import org.jetbrains.annotations.Nullable;
+
+import static org.apache.ignite.internal.schema.marshaller.generator.JaninoSerializerGenerator.LF;
 
 /**
  * Object field access expression generators.
  */
 class FieldAccessExprGenerator {
+    /** Append null expression. */
+    private static final String WRITE_NULL_EXPR = "asm.appendNull();";
+
+    /**
+     * Created object field access expressions generator.
+     *
+     * @param mode Field access binary mode.
+     * @param colIdx Column absolute index in schema.
+     * @param offset Object field offset.
+     * @return Object field access expressions generator.
+     */
+    static FieldAccessExprGenerator createAccessor(BinaryMode mode, int colIdx, long offset) {
+        switch (mode) {
+            case BYTE:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "Byte",
+                    "tuple.byteValueBoxed",
+                    "asm.appendByte",
+                    offset);
+
+            case P_BYTE:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "tuple.byteValue",
+                    "asm.appendByte",
+                    offset,
+                    "IgniteUnsafeUtils.getByteField",
+                    "IgniteUnsafeUtils.putByteField"
+                );
+
+            case SHORT:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "Short",
+                    "tuple.shortValueBoxed",
+                    "asm.appendShort",
+                    offset);
+
+            case P_SHORT:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "tuple.shortValue",
+                    "asm.appendShort",
+                    offset,
+                    "IgniteUnsafeUtils.getShortField",
+                    "IgniteUnsafeUtils.putShortField"
+                );
+
+            case INT:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "Integer",
+                    "tuple.intValueBoxed",
+                    "asm.appendInt",
+                    offset);
+
+            case P_INT:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "tuple.intValue",
+                    "asm.appendInt",
+                    offset,
+                    "IgniteUnsafeUtils.getIntField",
+                    "IgniteUnsafeUtils.putIntField"
+                );
+
+            case LONG:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "Long",
+                    "tuple.longValueBoxed",
+                    "asm.appendLong",
+                    offset);
+
+            case P_LONG:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "tuple.longValue",
+                    "asm.appendLong",
+                    offset,
+                    "IgniteUnsafeUtils.getLongField",
+                    "IgniteUnsafeUtils.putLongField"
+                );
+
+            case FLOAT:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "Float",
+                    "tuple.floatValueBoxed",
+                    "asm.appendFloat",
+                    offset);
+
+            case P_FLOAT:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "tuple.floatValue",
+                    "asm.appendFloat",
+                    offset,
+                    "IgniteUnsafeUtils.getFloatField",
+                    "IgniteUnsafeUtils.putFloatField"
+                );
+
+            case DOUBLE:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "Double",
+                    "tuple.doubleValueBoxed",
+                    "asm.appendDouble",
+                    offset);
+
+            case P_DOUBLE:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "tuple.doubleValue",
+                    "asm.appendDouble",
+                    offset,
+                    "IgniteUnsafeUtils.getDoubleField",
+                    "IgniteUnsafeUtils.putDoubleField"
+                );
+
+            case UUID:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "UUID",
+                    "tuple.uuidValue", "asm.appendUuid",
+                    offset);
+
+            case BITSET:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "BitSet",
+                    "tuple.bitmaskValue", "asm.appendBitmask",
+                    offset);
+
+            case STRING:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "String",
+                    "tuple.stringValue", "asm.appendString",
+                    offset);
+
+            case BYTE_ARR:
+                return new FieldAccessExprGenerator(
+                    colIdx,
+                    "byte[]",
+                    "tuple.bytesValue", "asm.appendBytes",
+                    offset);
+            default:
+                throw new IllegalStateException("Unsupportd binary mode");
+        }
+    }
+
     /** Object field offset or {@code -1} for identity accessor. */
     private final long offset;
 
@@ -30,7 +186,7 @@ class FieldAccessExprGenerator {
     private final int colIdx;
 
     /** Class cast expression. */
-    private final String castClassExpr;
+    private final String classExpr;
 
     /** Write column value expression. */
     private final String writeColMethod;
@@ -53,7 +209,7 @@ class FieldAccessExprGenerator {
      * @param writeColMethod Write column value expression.
      * @param offset Field offset or {@code -1} for identity accessor.
      */
-    public FieldAccessExprGenerator(
+    private FieldAccessExprGenerator(
         int colIdx,
         String castClassExpr,
         String readColMethod,
@@ -107,7 +263,7 @@ class FieldAccessExprGenerator {
     ) {
         this.offset = offset;
         this.colIdx = colIdx;
-        this.castClassExpr = castClassExpr;
+        this.classExpr = castClassExpr;
         this.putFieldMethod = putFieldMethod;
         this.getFieldMethod = getFieldMethod;
         this.writeColMethod = writeColMethod;
@@ -115,10 +271,24 @@ class FieldAccessExprGenerator {
     }
 
     /**
+     * @return {@code true} if it is primitive typed field accessor, {@code false} otherwise.
+     */
+    private boolean isPrimitive() {
+        return classExpr == null;
+    }
+
+    /**
+     * @return {@code true} if is identity accessor, {@code false} otherwise.
+     */
+    private boolean isIdentityAccessor() {
+        return offset == -1;
+    }
+
+    /**
      * @return Object field value access expression or object value expression for simple types.
      */
     public String getFieldExpr() {
-        if (offset == -1)
+        if (isIdentityAccessor())
             return "obj"; // Identity accessor.
 
         return getFieldMethod + "(obj, " + offset + ')';
@@ -133,7 +303,7 @@ class FieldAccessExprGenerator {
      */
     public final void appendPutFieldExpr(StringBuilder sb, String valueExpression, String indent) {
         sb.append(indent).append(putFieldMethod).append("(obj, ").append(offset).append(", ").append(valueExpression).append(')');
-        sb.append(";" + JaninoSerializerGenerator.LF);
+        sb.append(";" + LF);
     }
 
     /**
@@ -144,12 +314,30 @@ class FieldAccessExprGenerator {
      * @param indent Line indentation.
      */
     public final void appendWriteColumnExpr(StringBuilder sb, String valueExpr, String indent) {
-        sb.append(indent).append(writeColMethod).append('(');
+        if (isPrimitive() || isIdentityAccessor()) {
+            // Translate to:
+            // asm.appendX((T) %value%);
+            // or for primitive value:
+            // asm.appendX(%value%);
+            sb.append(indent).append(writeColMethod).append('(');
 
-        if (castClassExpr != null)
-            sb.append("(").append(castClassExpr).append(")");
+            if (classExpr != null)
+                sb.append("(").append(classExpr).append(")");
 
-        sb.append(valueExpr).append(");" + JaninoSerializerGenerator.LF);
+            sb.append(valueExpr).append(");" + LF);
+
+            return;
+        }
+
+        assert classExpr != null;
+
+        // Translate to:
+        // { T fVal = (T)%value%;
+        //  if (fVal == null) asm.appendNull() else asm.appendX(fVal); }
+        sb.append(indent).append("{ ").append(classExpr).append(" fVal = (").append(classExpr).append(')').append(valueExpr).append(";" + LF);
+        sb.append(indent).append("if (fVal == null) " + WRITE_NULL_EXPR + LF);
+        sb.append(indent).append("else ").append(writeColMethod).append("(fVal); }" + LF);
+
     }
 
     /**

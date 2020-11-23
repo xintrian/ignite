@@ -23,8 +23,8 @@ import org.apache.ignite.internal.schema.marshaller.Serializer;
  * Generate {@link Serializer} method's bodies.
  */
 class MarshallerExprGenerator {
-    /** Instance class expression. */
-    private final String classExpr;
+    /** Object factory regerence expression. */
+    private final String factoryRefExpr;
 
     /** Object field access expression generators. */
     protected FieldAccessExprGenerator[] accessors;
@@ -32,12 +32,19 @@ class MarshallerExprGenerator {
     /**
      * Constructor.
      *
-     * @param classExpr Instance class expression.
+     * @param factoryRefExpr Object factory regerence expression.
      * @param accessors Object field access expression generators.
      */
-    public MarshallerExprGenerator(String classExpr, FieldAccessExprGenerator[] accessors) {
+    public MarshallerExprGenerator(String factoryRefExpr, FieldAccessExprGenerator[] accessors) {
         this.accessors = accessors;
-        this.classExpr = classExpr;
+        this.factoryRefExpr = factoryRefExpr;
+    }
+
+    /**
+     * @return {@code true} if it is simple object marshaller, {@code false} otherwise.
+     */
+    boolean isSimpleTypeMarshaller() {
+        return factoryRefExpr == null;
     }
 
     /**
@@ -47,19 +54,21 @@ class MarshallerExprGenerator {
      * @param indent Line indentation.
      */
     public void appendUnmarshallObjectExpr(StringBuilder sb, String indent) {
+        assert factoryRefExpr != null;
+
         sb.append(indent).append("Object obj;" + JaninoSerializerGenerator.LF);
         // Try.
         sb.append(indent).append("try {" + JaninoSerializerGenerator.LF);
-        sb.append(indent).append(JaninoSerializerGenerator.TAB + "obj = IgniteUnsafeUtils.allocateInstance(").append(classExpr).append(");" + JaninoSerializerGenerator.LF);
+        sb.append(indent).append(JaninoSerializerGenerator.TAB + "obj = ").append(factoryRefExpr).append(".create();" + JaninoSerializerGenerator.LF);
 
         // Read column from tuple to object field.
         for (int i = 0; i < accessors.length; i++)
             accessors[i].appendPutFieldExpr(sb, accessors[i].readColumnExpr(), indent + JaninoSerializerGenerator.TAB);
 
         // Catch and rethrow wrapped exeption.
-        sb.append(indent).append("} catch (InstantiationException ex) {" + JaninoSerializerGenerator.LF);
+        sb.append(indent).append("} catch (Exception ex) {" + JaninoSerializerGenerator.LF);
         sb.append(indent).append(JaninoSerializerGenerator.TAB + "throw new SerializationException(\"Failed to instantiate object: \" + ")
-            .append(classExpr).append(".getSimpleName(), ex);").append(JaninoSerializerGenerator.LF);
+            .append(factoryRefExpr).append(".getClazz().getName(), ex);").append(JaninoSerializerGenerator.LF);
         sb.append(indent).append("}" + JaninoSerializerGenerator.LF);
     }
 

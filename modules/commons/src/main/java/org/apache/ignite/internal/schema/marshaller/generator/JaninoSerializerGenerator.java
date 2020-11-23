@@ -121,27 +121,33 @@ public class JaninoSerializerGenerator implements SerializerFactory {
             "org.apache.ignite.internal.schema.SchemaDescriptor",
             "org.apache.ignite.internal.schema.Tuple",
             "org.apache.ignite.internal.schema.TupleAssembler",
-            "org.apache.ignite.internal.util.IgniteUnsafeUtils"
+            "org.apache.ignite.internal.util.IgniteUnsafeUtils",
+            "org.apache.ignite.internal.util.ObjectFactory"
         );
+
+        // Build field accessor generators.
+        final MarshallerExprGenerator keyMarsh = createObjectMarshaller(keyClass, "keyFactory", schema.keyColumns(), 0);
+        final MarshallerExprGenerator valMarsh = createObjectMarshaller(valClass, "valFactory", schema.valueColumns(), schema.keyColumns().length());
 
         // Create buffer.
         final StringBuilder sb = new StringBuilder(INITIAL_BUFFER_SIZE);
 
         // Append class fields desctiption.
         sb.append("private final SchemaDescriptor schema;" + LF);
-        sb.append("private final Class kClass;" + LF);
-        sb.append("private final Class vClass;" + LF);
+
+        if (!keyMarsh.isSimpleTypeMarshaller())
+            sb.append("private final ObjectFactory keyFactory;" + LF);
+        if (!valMarsh.isSimpleTypeMarshaller())
+            sb.append("private final ObjectFactory valFactory;" + LF);
 
         // Append constructor code.
         sb.append(LF + "public ").append(className).append("(SchemaDescriptor schema, Class kClass, Class vClass) {" + LF);
-        sb.append(TAB + "this.kClass = kClass;" + LF);
-        sb.append(TAB + "this.vClass = vClass;" + LF);
         sb.append(TAB + "this.schema = schema; " + LF);
+        if (!keyMarsh.isSimpleTypeMarshaller())
+            sb.append(TAB + "keyFactory = new ObjectFactory(kClass);" + LF);
+        if (!valMarsh.isSimpleTypeMarshaller())
+            sb.append(TAB + "valFactory = new ObjectFactory(vClass);" + LF);
         sb.append("}" + LF);
-
-        // Build field accessor generators.
-        final MarshallerExprGenerator keyMarsh = createObjectMarshaller(keyClass, "kClass", schema.keyColumns(), 0);
-        final MarshallerExprGenerator valMarsh = createObjectMarshaller(valClass, "vClass", schema.valueColumns(), schema.keyColumns().length());
 
         // Generate and append helper-methods.
         generateTupleFactoryMethod(sb, schema, keyMarsh, valMarsh);
@@ -158,14 +164,14 @@ public class JaninoSerializerGenerator implements SerializerFactory {
      * Creates marshal/unmarshall expressions generator for object.
      *
      * @param aClass Object class.
-     * @param classExpr Instance class expression or {@code null} if not aplicable.
+     * @param factoryRefExpr Factory reference expression.
      * @param columns Columns that aClass mapped to.
      * @param firstColIdx First column absolute index in schema.
      * @return Marshal/unmarshall expression generator.
      */
     private MarshallerExprGenerator createObjectMarshaller(
         Class<?> aClass,
-        @Nullable String classExpr,
+        @Nullable String factoryRefExpr,
         Columns columns,
         int firstColIdx
     ) {
@@ -189,7 +195,7 @@ public class JaninoSerializerGenerator implements SerializerFactory {
             throw new IllegalStateException(ex);
         }
 
-        return new MarshallerExprGenerator(classExpr, accessors);
+        return new MarshallerExprGenerator(factoryRefExpr, accessors);
     }
 
     /**

@@ -17,12 +17,15 @@
 
 package org.apache.ignite.internal.util;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+
 /**
  * Object factory.
  */
 public class ObjectFactory<T> implements Factory<T> {
-    /** Class. */
-    private final Class<T> tClass;
+    /** Class default constructor. */
+    private final Constructor<T> cnstr;
 
     /**
      * Constructor.
@@ -30,16 +33,30 @@ public class ObjectFactory<T> implements Factory<T> {
      * @param tClass Class.
      */
     public ObjectFactory(Class<T> tClass) {
-        this.tClass = tClass;
+        try {
+            cnstr = tClass.getDeclaredConstructor();
+
+            cnstr.setAccessible(true);
+        }
+        catch (NoSuchMethodException e) {
+            throw new IllegalStateException("Class has no default constructor: class=" + tClass.getName(), e);
+        }
     }
 
     /** {@inheritDoc} */
     @Override public T create() throws IllegalStateException {
         try {
-            return (T)IgniteUnsafeUtils.allocateInstance(tClass);
+            return cnstr.newInstance();
         }
-        catch (InstantiationException e) {
-            throw new IllegalStateException("Failed to instantiate class: " + tClass.getSimpleName(), e);
+        catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new IllegalStateException("Failed to instantiate class: " + cnstr.getDeclaringClass().getName(), e);
         }
+    }
+
+    /**
+     * @return Class of object created by the factory.
+     */
+    public Class<T> getClazz() {
+        return cnstr.getDeclaringClass();
     }
 }

@@ -266,17 +266,6 @@ public final class IgniteUnsafeUtils {
     }
 
     /**
-     * Allocates instance of given class.
-     *
-     * @param cls Class.
-     * @return Allocated instance.
-     */
-    @SuppressWarnings("rawtypes")
-    public static Object allocateInstance(Class cls) throws InstantiationException {
-        return UNSAFE.allocateInstance(cls);
-    }
-
-    /**
      * Stub.
      */
     private IgniteUnsafeUtils() {

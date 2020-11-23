@@ -17,9 +17,7 @@
 
 package org.apache.ignite.internal.benchmarks;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.internal.schema.Column;
@@ -28,6 +26,7 @@ import org.apache.ignite.internal.schema.SchemaDescriptor;
 import org.apache.ignite.internal.schema.marshaller.Serializer;
 import org.apache.ignite.internal.schema.marshaller.SerializerFactory;
 import org.apache.ignite.internal.util.Factory;
+import org.apache.ignite.internal.util.ObjectFactory;
 import org.codehaus.commons.compiler.CompilerFactoryFactory;
 import org.codehaus.commons.compiler.IClassBodyEvaluator;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -69,11 +68,11 @@ public class SerializerBenchmarkTest {
     private Factory<?> objectFactory;
 
     /** Object fields count. */
-    @Param({ "10", "100"})
+    @Param({"10", "100"})
     public int fieldsCount;
 
     /** Serializer. */
-    @Param({"Janino","Java"})
+    @Param({"Janino", "Java"})
     public String serializerName;
 
     /**
@@ -97,18 +96,7 @@ public class SerializerBenchmarkTest {
         rnd = new Random(seed);
 
         final Class<?> valClass = createGeneratedObjectClass(fieldsCount, Long.TYPE);
-//        objectFactory = new ObjectFactory<>(valClass);
-        final Constructor<?> constr = valClass.getDeclaredConstructor();
-        objectFactory = new Factory<Object>() {
-            @Override public Object create() {
-                try {
-                    return constr.newInstance();
-                }
-                catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                    throw new IllegalStateException("Failed to instantiate class: " + valClass.getSimpleName(), e);
-                }
-            }
-        };
+        objectFactory = new ObjectFactory<>(valClass);
 
         Columns keyCols = new Columns(new Column("key", LONG, true));
         Columns valCols = mapFieldsToColumns(valClass);

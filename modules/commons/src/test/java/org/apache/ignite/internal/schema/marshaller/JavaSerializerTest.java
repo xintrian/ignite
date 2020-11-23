@@ -255,18 +255,10 @@ public class JavaSerializerTest {
         final Object key = WrongTestObject.randomObject(rnd);
         final Object val = WrongTestObject.randomObject(rnd);
 
-        Serializer serializer = factory.create(schema, key.getClass(), val.getClass());
-
-        byte[] bytes = serializer.serialize(key, val);
-
-        Object key1 = serializer.deserializeKey(bytes);
-        Object val1 = serializer.deserializeValue(bytes);
-
-        assertTrue(key.getClass().isInstance(key1));
-        assertTrue(val.getClass().isInstance(val1));
-
-        assertEquals(key, key);
-        assertEquals(val, val1);
+        assertThrows(IllegalStateException.class,
+            () -> factory.create(schema, key.getClass(), val.getClass()),
+            "Class has no default constructor: class=org.apache.ignite.internal.schema.marshaller.JavaSerializerTest$WrongTestObject"
+            );
     }
 
     /**
